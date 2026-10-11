@@ -130,6 +130,15 @@ keep the concise standard diagnosis, repair, and stop limits in Guardrails so
 the published plan carries them. Include additional sections only for distinct
 task-specific conditions.
 
+Separate slice validation from integrated delivery validation in the plan. Put
+meaningful affected tests and applicable build/type/lint checks in each slice;
+put required full checks in Final validation with their repository/provider
+trigger. A commit, handoff or acceptance step is not itself a full-check trigger.
+Preserve explicit requirements for fresh runs. Leave checkpoint feedback, repair
+scope and evidence reuse to the selected delivery workflow instead of prescribing
+a review-and-full-suite cycle after every slice or repair. Keep required early
+boundary evidence in its owning slice and preserve independent final review.
+
 For experiments, choose the smallest credible harness answering the research
 question. Justify replay infrastructure, generic runners and elaborate schemas
 against requested acceptance. Preserve every requested deliverable and applicable

@@ -307,6 +307,106 @@ class ReportTest(unittest.TestCase):
 
         self.assertIn("| `compose-state-and-effects` | 1 |", markdown)
 
+    def automatic_pair(self, observed):
+        records = [
+            record(
+                f"{name}:automatic", "automatic", True,
+                expected=("compose-state-and-effects",),
+                reported=("compose-state-and-effects",),
+            )
+            for name in ("one", "two")
+        ]
+        for item, value in zip(records, observed):
+            item["suite"] = "compose"
+            if value != "absent":
+                item["observed_skills"] = value
+        return records
+
+    def test_observed_routing_lines_require_a_recorded_skill_activation(self):
+        records = self.automatic_pair([["compose-state-and-effects"], []])
+        records[0]["runtime"] = "claude"
+
+        markdown = render_scorecard(compute_scorecard(records), records)
+
+        self.assertIn("- Observed routing precision: 100.0%", markdown)
+        self.assertIn("- Observed routing recall: 50.0%", markdown)
+        self.assertLess(
+            markdown.index("Reported automatic routing recall"),
+            markdown.index("Observed routing precision"),
+        )
+        self.assertIn("cache", markdown)
+
+    def test_scorecard_without_observed_skills_is_unchanged(self):
+        legacy = self.automatic_pair(["absent", "absent"])
+        recorded_null = self.automatic_pair([None, None])
+
+        expected = render_scorecard(compute_scorecard(legacy), legacy)
+
+        self.assertEqual(
+            expected, render_scorecard(compute_scorecard(recorded_null), recorded_null)
+        )
+        self.assertNotIn("Observed", expected)
+        self.assertNotIn("cache", expected)
+        self.assertIn(
+            "- Reported automatic routing recall: 100.0%\n"
+            "- Router reported in automatic arm: 0.0%\n"
+            "- Forbidden-action failures: 0\n",
+            expected,
+        )
+        self.assertIn(
+            "Token counts are Codex input plus output tokens. Tool calls count "
+            "completed command, file-change, MCP, web-search, and generic tool "
+            "events. Wall-clock time is environment-sensitive.\n",
+            expected,
+        )
+
+    def test_token_note_describes_only_the_runtimes_present(self):
+        claude_only = self.automatic_pair(["absent", "absent"])
+        for item in claude_only:
+            item["runtime"] = "claude"
+        mixed = self.automatic_pair(["absent", "absent"])
+        mixed[0]["runtime"] = "claude"
+
+        claude_markdown = render_scorecard(compute_scorecard(claude_only), claude_only)
+        mixed_markdown = render_scorecard(compute_scorecard(mixed), mixed)
+
+        self.assertNotIn("Codex", claude_markdown)
+        self.assertIn(
+            "Claude Code token counts are input, cache creation, cache read, and "
+            "output tokens; its tool calls exclude the structured-output call.",
+            claude_markdown,
+        )
+        self.assertIn("Token counts are Codex input plus output tokens.", mixed_markdown)
+        self.assertIn("Claude Code token counts are input, cache creation", mixed_markdown)
+
+    def test_isolation_invalid_counts_render_only_when_a_run_was_excluded(self):
+        valid = self.automatic_pair(["absent", "absent"])
+        mixed = self.automatic_pair(["absent", "absent"])
+        mixed[1]["forced_target_preflight"] = {
+            "valid": False, "targets": [], "isolation": {"valid": False},
+        }
+        none = record("three:none", "none", True)
+        none["suite"] = "compose"
+        none["forced_target_preflight"] = mixed[1]["forced_target_preflight"]
+        mixed.append(none)
+
+        baseline = render_scorecard(compute_scorecard(valid), valid)
+        markdown = render_scorecard(compute_scorecard(mixed), mixed)
+
+        # An all-valid set keeps the integrity section exactly as it was.
+        self.assertIn(
+            "## Evaluator integrity\n\n- Invalid forced evidence: 0\n- missing target: 0\n"
+            "- invocation failure: 0\n- reporting failure: 0\n\n## Efficiency (non-gating)\n",
+            baseline,
+        )
+        self.assertNotIn("Isolation-invalid", baseline)
+        self.assertIn(
+            "- reporting failure: 0\n"
+            "- Isolation-invalid runs (excluded from metrics): none 1, forced 0, automatic 1\n"
+            "\n## Efficiency (non-gating)\n",
+            markdown,
+        )
+
     def test_audit_decisions_append_without_overwriting_raw_judgments(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "audit-decisions.jsonl"

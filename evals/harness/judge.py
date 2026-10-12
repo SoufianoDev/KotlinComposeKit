@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from evals.harness.cases import EvalCase
-from evals.harness.codex import SubjectResult, discover_skill_paths, parse_codex_jsonl
 from evals.harness.grade import (
     ObjectiveGrade,
     _requires_gradle_workflow,
     gradle_execution_evidence,
 )
+from evals.harness.runner import SubjectResult, get_runtime
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class JudgeResult:
     stdout: str
     stderr: str
     elapsed_seconds: float
+    runtime: str = "codex"
 
 
 def _initial_state(workspace: Path) -> dict[str, str]:
@@ -47,7 +48,7 @@ def _initial_state(workspace: Path) -> dict[str, str]:
     ).stdout.splitlines()
     state: dict[str, str] = {}
     for path in paths:
-        if path.startswith((".agents/", ".eval/")):
+        if path.startswith((".agents/", ".claude/", ".eval/")):
             continue
         completed = subprocess.run(
             ["git", "show", f"HEAD:{path}"],
@@ -70,7 +71,7 @@ def build_judge_packet(
         "evidence": result.final_output.get("evidence", []),
     }
     workflow_evidence = (
-        gradle_execution_evidence(result.events)
+        gradle_execution_evidence(result.events, runtime=result.runtime)
         if _requires_gradle_workflow(case.required_command_patterns)
         else None
     )
@@ -110,22 +111,7 @@ def build_judge_packet(
     return packet
 
 
-def _disabled_skill_config(skill_paths: tuple[Path, ...]) -> str:
-    entries = []
-    for skill_path in sorted(set(skill_paths), key=str):
-        path = json.dumps(str(skill_path.resolve()))
-        entries.append(f"{{ path = {path}, enabled = false }}")
-    return "skills.config=[" + ", ".join(entries) + "]"
-
-
-def build_judge_command(
-    packet_path: Path,
-    repo_root: Path,
-    config: JudgeConfig,
-    *,
-    codex_executable: str = "codex",
-    skill_paths: tuple[Path, ...] | None = None,
-) -> list[str]:
+def judge_prompt(packet_path: Path) -> str:
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     trusted_criteria = json.dumps(
         {
@@ -152,35 +138,26 @@ def build_judge_command(
         "from the subject's workspace because they are absent from yours. "
         "Return the required structured judgment without guessing experiment metadata."
     )
-    return [
-        codex_executable,
-        "exec",
-        "--ephemeral",
-        "--ignore-user-config",
-        "--ignore-rules",
-        "--skip-git-repo-check",
-        "--strict-config",
-        "--json",
-        "--output-schema",
-        str((repo_root / "evals" / "schemas" / "judge-output.schema.json").resolve()),
-        "--model",
-        config.model,
-        "-c",
-        f'model_reasoning_effort="{config.reasoning}"',
-        "-c",
-        "sandbox_workspace_write.network_access=false",
-        "-c",
-        'web_search="disabled"',
-        "-c",
-        _disabled_skill_config(
-            discover_skill_paths(repo_root) if skill_paths is None else skill_paths
-        ),
-        "--sandbox",
-        "read-only",
-        "-C",
-        str(packet_path.parent.resolve()),
-        prompt,
-    ]
+    return prompt
+
+
+def build_judge_command(
+    packet_path: Path,
+    repo_root: Path,
+    config: JudgeConfig,
+    *,
+    runtime: str = "codex",
+    executable: str | None = None,
+    skill_paths: tuple[Path, ...] | None = None,
+) -> list[str]:
+    adapter = get_runtime(runtime)
+    return adapter.build_judge_command(
+        packet_path,
+        repo_root,
+        config,
+        executable=executable or adapter.name,
+        skill_paths=skill_paths,
+    )
 
 
 def judge_output_valid(output: dict[str, Any]) -> bool:
@@ -226,10 +203,12 @@ def run_judge(
     repo_root: Path,
     config: JudgeConfig,
     *,
-    codex_executable: str = "codex",
+    runtime: str = "codex",
+    executable: str | None = None,
     skill_paths: tuple[Path, ...] | None = None,
 ) -> JudgeResult:
     started = time.monotonic()
+    adapter = get_runtime(runtime)
     with tempfile.TemporaryDirectory(prefix="skill-eval-judge-") as temp_dir:
         isolated_packet = Path(temp_dir) / packet_path.name
         shutil.copy2(packet_path, isolated_packet)
@@ -237,7 +216,8 @@ def run_judge(
             isolated_packet,
             repo_root,
             config,
-            codex_executable=codex_executable,
+            runtime=runtime,
+            executable=executable,
             skill_paths=skill_paths,
         )
         try:
@@ -248,6 +228,7 @@ def run_judge(
                 capture_output=True,
                 timeout=config.timeout_seconds,
                 check=False,
+                **adapter.judge_process_options(),
             )
             returncode = completed.returncode
             stdout = completed.stdout
@@ -256,7 +237,7 @@ def run_judge(
             returncode = 124
             stdout = error.stdout if isinstance(error.stdout, str) else ""
             stderr = error.stderr if isinstance(error.stderr, str) else ""
-    events, output, usage = parse_codex_jsonl(stdout)
+    events, output, usage = adapter.parse(stdout)
     return JudgeResult(
         returncode=returncode,
         events=events,
@@ -265,4 +246,5 @@ def run_judge(
         stdout=stdout,
         stderr=stderr,
         elapsed_seconds=time.monotonic() - started,
+        runtime=runtime,
     )

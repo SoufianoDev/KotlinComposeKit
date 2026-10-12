@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from evals.harness.codex import completed_tool_call_count
+from evals.harness.runner import get_runtime, record_judge_runtime, record_runtime
 from evals.harness.score import Scorecard, is_behavioral_evidence
 from evals.harness.suites import SUITES
 
@@ -155,7 +155,10 @@ def _role_attempts(
 def _tool_event_count(records: Iterable[dict[str, Any]]) -> int | None:
     count = 0
     for record in records:
-        for role in ("subject", "judge"):
+        for role, runtime in (
+            ("subject", record_runtime(record)),
+            ("judge", record_judge_runtime(record)),
+        ):
             attempts = _role_attempts(record, role)
             if attempts is None:
                 return None
@@ -166,7 +169,7 @@ def _tool_event_count(records: Iterable[dict[str, Any]]) -> int | None:
                     continue
                 events = attempt.get("events", [])
                 if isinstance(events, list):
-                    count += completed_tool_call_count(events)
+                    count += get_runtime(runtime).tool_call_count(events)
     return count
 
 
@@ -290,6 +293,15 @@ def render_scorecard(
             f"- Automatic retention: {_percent(score.automatic_retention)}",
             f"- Reported automatic routing precision: {_percent(score.routing_precision)}",
             f"- Reported automatic routing recall: {_percent(score.routing_recall)}",
+            *(
+                [
+                    "- Observed routing precision: "
+                    f"{_percent(score.observed_routing_precision)}",
+                    f"- Observed routing recall: {_percent(score.observed_routing_recall)}",
+                ]
+                if any(record.get("observed_skills") is not None for record in records)
+                else []
+            ),
             f"- Router reported in automatic arm: {_percent(score.router_report_rate)}",
             f"- Forbidden-action failures: {score.forbidden_action_failures}",
             "",
@@ -311,6 +323,17 @@ def render_scorecard(
                 )
                 for category, record_ids in score.forced_integrity_categories.items()
             ],
+            *(
+                [
+                    "- Isolation-invalid runs (excluded from metrics): "
+                    + ", ".join(
+                        f"{arm} {count}"
+                        for arm, count in score.isolation_invalid_counts.items()
+                    )
+                ]
+                if any(score.isolation_invalid_counts.values())
+                else []
+            ),
             "",
             "## Efficiency (non-gating)",
             "",
@@ -363,12 +386,22 @@ def render_scorecard(
                 f"{_comparison(baseline.median_turns_per_run, automatic.median_turns_per_run, _count)} | "
                 f"{_comparison(baseline.median_elapsed_seconds_per_run, automatic.median_elapsed_seconds_per_run, _seconds)} |"
             )
+    runtimes = {record_runtime(record) for record in records} or {"codex"}
+    token_notes = []
+    if "codex" in runtimes:
+        token_notes.append(
+            "Token counts are Codex input plus output tokens. Tool calls count completed "
+            "command, file-change, MCP, web-search, and generic tool events."
+        )
+    if "claude" in runtimes:
+        token_notes.append(
+            "Claude Code token counts are input, cache creation, cache read, and "
+            "output tokens; its tool calls exclude the structured-output call."
+        )
     lines.extend(
         [
             "",
-            "Token counts are Codex input plus output tokens. Tool calls count completed "
-            "command, file-change, MCP, web-search, and generic tool events. Wall-clock "
-            "time is environment-sensitive.",
+            " ".join([*token_notes, "Wall-clock time is environment-sensitive."]),
             "",
             "## Evaluation diagnostics (non-gating)",
             "",

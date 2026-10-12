@@ -11,33 +11,35 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from evals.harness.cases import EvalCase
-from evals.harness.codex import (
+from evals.harness.claude import ClaudeRuntime, discover_builtin_skills
+from evals.harness.codex import discover_skill_paths
+from evals.harness.grade import ObjectiveGrade, _event_invocations, grade_subject
+from evals.harness.judge import (
+    JudgeConfig,
+    JudgeResult,
+    build_judge_packet,
+    judge_covers_rubric,
+    judge_output_valid,
+    judge_passes_rubric,
+    judge_prompt,
+    run_judge,
+)
+from evals.harness.report import write_reports
+from evals.harness.runner import (
     ARMS,
     RunConfig,
     SubjectResult,
     _GRADLE_OUTPUT_DIRECTORIES,
     automatically_invokable_public_skills,
     captured_skill_file_evidence,
-    completed_turn_count,
-    completed_tool_call_count,
-    discover_skill_paths,
+    get_runtime,
     is_generated_skill_path,
+    record_judge_runtime,
+    record_runtime,
     reported_skill_names,
     run_subject,
     subject_output_valid,
 )
-from evals.harness.grade import ObjectiveGrade, _event_invocations, grade_subject
-from evals.harness.judge import (
-    JudgeConfig,
-    JudgeResult,
-    build_judge_command,
-    build_judge_packet,
-    judge_covers_rubric,
-    judge_output_valid,
-    judge_passes_rubric,
-    run_judge,
-)
-from evals.harness.report import write_reports
 from evals.harness.results import (
     load_result,
     result_fingerprint,
@@ -60,7 +62,15 @@ RUN_CONTROL_FIELDS = (
 COMMAND_OUTPUT_TIMEOUT_SECONDS = 30
 CODEX_VERSION_TIMEOUT_SECONDS = 10
 GRADLE_PREFLIGHT_TIMEOUT_SECONDS = 180
-JUDGE_PROTOCOL_SOURCES = ("cases.py", "codex.py", "experiment.py", "grade.py", "judge.py")
+JUDGE_PROTOCOL_SOURCES = (
+    "cases.py",
+    "claude.py",
+    "codex.py",
+    "experiment.py",
+    "grade.py",
+    "judge.py",
+    "runner.py",
+)
 
 
 def _judge_protocol_digest(harness_dir: Path) -> str:
@@ -113,18 +123,19 @@ def _apply_routing_expectations(
     subject = record.get("subject")
     events = subject.get("events", []) if isinstance(subject, dict) else []
     expected_skills, allowed_skills = _result_routing_expectations(
-        case, str(record.get("arm")), repo_root, events
+        case, str(record.get("arm")), repo_root, events, record_runtime(record)
     )
     record["expected_skills"] = list(expected_skills)
     record["allowed_skills"] = list(allowed_skills)
     record["automatic_eligible"] = _automatic_eligible(case, repo_root)
 
 
-def _gradle_was_executed(events: object) -> bool:
+def _gradle_was_executed(events: object, runtime: str) -> bool:
     if not isinstance(events, (list, tuple)):
         return False
     normalized_events = tuple(event for event in events if isinstance(event, dict))
-    for invocation in _event_invocations(normalized_events):
+    commands = get_runtime(runtime).commands(normalized_events)
+    for invocation in _event_invocations(commands):
         try:
             words = shlex.split(invocation)
         except ValueError:
@@ -156,10 +167,11 @@ def _result_routing_expectations(
     arm: str,
     repo_root: Path,
     events: object,
+    runtime: str,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     expected_skills, allowed_skills = _routing_expectations(case, arm, repo_root)
     if arm == "automatic" and "gradle-run" in allowed_skills:
-        if _gradle_was_executed(events):
+        if _gradle_was_executed(events, runtime):
             if "gradle-run" not in expected_skills:
                 expected_skills = (*expected_skills, "gradle-run")
         elif "gradle-run" not in expected_skills:
@@ -361,9 +373,21 @@ def _codex_version(repo_root: Path, codex_executable: str) -> str:
 
 
 def preflight(
-    repo_root: Path, codex_executable: str, cases: Iterable[EvalCase]
-) -> tuple[str, str]:
-    codex_version = _codex_version(repo_root, codex_executable)
+    repo_root: Path,
+    codex_executable: str,
+    cases: Iterable[EvalCase],
+    *,
+    runtimes: Iterable[str] = ("codex",),
+    claude_executable: str = "claude",
+) -> tuple[dict[str, str], str]:
+    """Return each selected runtime's CLI version plus the skill commit."""
+    executables = {"codex": codex_executable, "claude": claude_executable}
+    selected = set(runtimes)
+    versions = {
+        name: get_runtime(name).version(executable, repo_root)
+        for name, executable in executables.items()
+        if name in selected
+    }
     skill_sha = _command_output(["git", "rev-parse", "HEAD"], cwd=repo_root)
     for fixture_name in sorted({case.fixture for case in cases}):
         fixture = repo_root / "evals" / "fixtures" / fixture_name
@@ -377,7 +401,7 @@ def preflight(
                     "Check the offline Gradle dependencies and inspect the fixture build output."
                 ),
             )
-    return codex_version, skill_sha
+    return versions, skill_sha
 
 
 def _judge_retryable(result: JudgeResult) -> bool:
@@ -389,11 +413,12 @@ def _validator_payload(grade: ObjectiveGrade) -> list[dict[str, Any]]:
 
 
 def _attempt_payload(result: SubjectResult | JudgeResult) -> dict[str, Any]:
+    runtime = get_runtime(getattr(result, "runtime", "codex"))
     return {
         "returncode": result.returncode,
         "usage": result.usage,
-        "tool_calls": completed_tool_call_count(result.events),
-        "turns": completed_turn_count(result.events),
+        "tool_calls": runtime.tool_call_count(result.events),
+        "turns": runtime.turn_count(result.events),
         "elapsed_seconds": result.elapsed_seconds,
     }
 
@@ -433,7 +458,8 @@ def _result_payload(
     judge_attempts: list[JudgeResult],
     subject_retries: int,
     judge_retries: int,
-    codex_version: str,
+    versions: dict[str, str],
+    builtin_skills: tuple[str, ...] | None,
     skill_sha: str,
     case_digest: str,
     fingerprint: str,
@@ -446,7 +472,7 @@ def _result_payload(
 ) -> dict[str, Any]:
     reported = reported_skill_names(subject.final_output)
     expected_skills, allowed_skills = _result_routing_expectations(
-        case, arm, repo_root, subject.events
+        case, arm, repo_root, subject.events, subject.runtime
     )
     automatic_eligible = _automatic_eligible(case, repo_root)
     judge_pass = judge.returncode == 0 and judge_passes_rubric(
@@ -459,7 +485,13 @@ def _result_payload(
         "repetition": repetition,
         "fingerprint": fingerprint,
         "case_digest": case_digest,
-        "codex_version": codex_version,
+        # Present whenever Codex runs the subject or the judge.
+        **({"codex_version": versions["codex"]} if "codex" in versions else {}),
+        "runtime": subject.runtime,
+        "runtime_version": versions[subject.runtime],
+        "judge_runtime": judge.runtime,
+        "judge_runtime_version": versions[judge.runtime],
+        **({"builtin_skills": list(builtin_skills)} if builtin_skills is not None else {}),
         "skill_sha": skill_sha,
         "skill_catalog": [str(path) for path in skill_paths],
         "skill_sources": [str(path) for path in skill_sources],
@@ -482,6 +514,7 @@ def _result_payload(
         "automatic_eligible": automatic_eligible,
         "reported_skills": [skill for skill in reported if skill != ROUTER_SKILL],
         "reported_router": ROUTER_SKILL in reported,
+        "observed_skills": get_runtime(subject.runtime).observed_skills(subject.events),
         "objective_pass": grade.objective_pass,
         "judge_pass": judge_pass,
         "outcome_pass": grade.objective_pass and judge_pass,
@@ -491,6 +524,7 @@ def _result_payload(
         "validators": _validator_payload(grade),
         "subject": {
             "command": list(subject.command),
+            "workspace": str(subject.workspace.resolve()),
             "events": list(subject.events),
             "returncode": subject.returncode,
             "final_output": subject.final_output,
@@ -502,7 +536,9 @@ def _result_payload(
             "retries": subject_retries,
             "attempts": [_attempt_payload(attempt) for attempt in subject_attempts],
             "stdout_artifacts": subject_stdout_artifacts,
-            "captured_skill_files": captured_skill_file_evidence(subject.workspace, subject.events),
+            "captured_skill_files": captured_skill_file_evidence(
+                subject.workspace, subject.events, runtime=subject.runtime
+            ),
         },
         "judge": {
             "returncode": judge.returncode,
@@ -527,12 +563,31 @@ def execute_experiment(
     judge_config: JudgeConfig,
     output_dir: Path,
     codex_executable: str = "codex",
+    claude_executable: str = "claude",
+    runtime: str = "codex",
+    judge_runtime: str = "codex",
     audit_seed: int = 20260816,
 ) -> dict[str, Path]:
     conditions = evaluation_conditions(repo_root, cases, arms)
     if not conditions:
         return write_reports(output_dir, [], compute_scorecard([]), seed=audit_seed)
-    codex_version, skill_sha = preflight(repo_root, codex_executable, cases)
+    executables = {"codex": codex_executable, "claude": claude_executable}
+    versions, skill_sha = preflight(
+        repo_root,
+        codex_executable,
+        cases,
+        runtimes=(runtime, judge_runtime),
+        claude_executable=claude_executable,
+    )
+    # Claude's bundled skills are discovered once; every unstaged one is switched off.
+    builtin_skills = (
+        discover_builtin_skills(claude_executable, run_config)
+        if runtime == "claude"
+        else None
+    )
+    subject_runtime = (
+        ClaudeRuntime(builtin_skills=builtin_skills) if runtime == "claude" else runtime
+    )
     skill_paths = discover_skill_paths(repo_root)
     skill_sources = _skill_source_paths(repo_root)
     skill_catalog_digest = _skill_catalog_digest(
@@ -546,13 +601,18 @@ def execute_experiment(
                 case_digest=_case_digest(case),
                 arm=arm,
                 skill_sha=skill_sha,
-                codex_version=codex_version,
+                codex_version=versions.get("codex"),
                 model=run_config.model,
                 reasoning=run_config.reasoning,
                 judge_model=judge_config.model,
                 judge_reasoning=judge_config.reasoning,
                 judge_protocol_digest=judge_protocol_digest,
                 skill_catalog_digest=skill_catalog_digest,
+                runtime=runtime,
+                runtime_version=versions[runtime],
+                judge_runtime=judge_runtime,
+                judge_runtime_version=versions[judge_runtime],
+                builtin_skills=builtin_skills,
             )
             result_path = output_dir / "raw" / case.id / arm / f"{repetition}.json"
             if result_path.is_file():
@@ -574,7 +634,8 @@ def execute_experiment(
                     repo_root,
                     workspace,
                     run_config,
-                    codex_executable=codex_executable,
+                    runtime=subject_runtime,
+                    executable=executables[runtime],
                     skill_paths=skill_paths,
                 )
 
@@ -613,7 +674,8 @@ def execute_experiment(
                     packet_path,
                     repo_root,
                     judge_config,
-                    codex_executable=codex_executable,
+                    runtime=judge_runtime,
+                    executable=executables[judge_runtime],
                     skill_paths=skill_paths,
                 )
                 judge_attempts.append(result)
@@ -636,7 +698,8 @@ def execute_experiment(
                 judge_attempts=judge_attempts,
                 subject_retries=subject_retries,
                 judge_retries=judge_retries,
-                codex_version=codex_version,
+                versions=versions,
+                builtin_skills=builtin_skills,
                 skill_sha=skill_sha,
                 case_digest=_case_digest(case),
                 fingerprint=fingerprint,
@@ -653,6 +716,44 @@ def execute_experiment(
     return write_reports(output_dir, records, compute_scorecard(records), seed=audit_seed)
 
 
+def _base_controls(payload: dict[str, Any]) -> list[str]:
+    uses_codex = "codex" in (record_runtime(payload), record_judge_runtime(payload))
+    return [
+        field
+        for field in RUN_CONTROL_FIELDS
+        if uses_codex or field != "codex_version"
+    ]
+
+
+def _runtime_controls(payload: dict[str, Any]) -> list[str]:
+    """Controls a non-Codex runtime adds; Codex versions are in codex_version."""
+    return [
+        *(
+            f"{role}_version"
+            for role, runtime in (
+                ("runtime", record_runtime(payload)),
+                ("judge_runtime", record_judge_runtime(payload)),
+            )
+            if runtime != "codex"
+        ),
+        *(["builtin_skills"] if record_runtime(payload) == "claude" else []),
+    ]
+
+
+def _required_controls(payload: dict[str, Any]) -> list[str]:
+    return [*_base_controls(payload), *_runtime_controls(payload)]
+
+
+def _run_controls(payload: dict[str, Any]) -> dict[str, Any]:
+    """The values that must match across records of one run."""
+    return {
+        **{field: payload.get(field) for field in _base_controls(payload)},
+        "runtime": record_runtime(payload),
+        "judge_runtime": record_judge_runtime(payload),
+        **{field: payload.get(field) for field in _runtime_controls(payload)},
+    }
+
+
 def load_raw_records(output_dir: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     baseline_controls: dict[str, Any] | None = None
@@ -666,23 +767,23 @@ def load_raw_records(output_dir: Path) -> list[dict[str, Any]]:
         payload = document["payload"]
         record_id = str(payload.get("id", path))
         payload.setdefault("suite", "compose")
+        controls = _run_controls(payload)
         missing_controls = [
-            field for field in RUN_CONTROL_FIELDS if field not in payload
+            field for field in _required_controls(payload) if field not in payload
         ]
         if missing_controls:
             raise ValueError(
                 f"raw record {record_id} is missing run controls: "
                 f"{', '.join(missing_controls)}"
             )
-        controls = {field: payload[field] for field in RUN_CONTROL_FIELDS}
         if baseline_controls is None:
             baseline_controls = controls
             baseline_id = record_id
         else:
             differing_controls = [
                 field
-                for field in RUN_CONTROL_FIELDS
-                if controls[field] != baseline_controls[field]
+                for field in {**baseline_controls, **controls}
+                if controls.get(field) != baseline_controls.get(field)
             ]
             if differing_controls:
                 raise ValueError(
@@ -706,9 +807,14 @@ def _subject_result_from_record(
 ) -> SubjectResult:
     subject = record.get("subject", {})
     command = subject.get("command", [])
-    if not isinstance(command, list) or "-C" not in command:
+    recorded_workspace = subject.get("workspace")
+    if isinstance(recorded_workspace, str):
+        workspace = Path(recorded_workspace).resolve()
+    elif isinstance(command, list) and "-C" in command:
+        # Legacy Codex records carry the workspace only after `-C`.
+        workspace = Path(command[command.index("-C") + 1]).resolve()
+    else:
         raise ValueError(f"record has no subject workspace: {record.get('id')}")
-    workspace = Path(command[command.index("-C") + 1]).resolve()
     workspaces_root = (workspace_root / "workspaces").resolve()
     if not workspace.is_relative_to(workspaces_root):
         raise ValueError(f"subject workspace escapes run directory: {workspace}")
@@ -727,6 +833,7 @@ def _subject_result_from_record(
         stderr=str(subject.get("stderr", "")),
         elapsed_seconds=float(subject.get("elapsed_seconds", 0.0)),
         forced_target_preflight=subject.get("forced_target_preflight"),
+        runtime=record_runtime(record),
     )
 
 
@@ -813,27 +920,25 @@ def write_rejudged_reports(
         if packet_path is None:
             continue
         judge_model = payload.get("judge_model")
-        codex_version = payload.get("codex_version")
-        if not isinstance(judge_model, dict) or not isinstance(codex_version, str):
+        judge_runtime = payload.get("judge_runtime", "codex")
+        # Codex rejudgments carry codex_version; others carry their own runtime version.
+        version = payload.get(
+            "codex_version" if judge_runtime == "codex" else "judge_runtime_version"
+        )
+        if not isinstance(judge_model, dict) or not isinstance(version, str):
             raise ValueError(f"rejudgment lacks run controls: {result_path}")
         model = judge_model.get("model")
         reasoning = judge_model.get("reasoning")
         if not isinstance(model, str) or not isinstance(reasoning, str):
             raise ValueError(f"invalid rejudgment model: {result_path}")
-        prompt_digest = hashlib.sha256(
-            build_judge_command(
-                packet_path,
-                repo_root,
-                JudgeConfig(model, reasoning),
-                skill_paths=skill_paths,
-            )[-1].encode()
-        ).hexdigest()
         current_fingerprint = _rejudgment_fingerprint(
             packet_path,
             JudgeConfig(model, reasoning),
             skill_catalog_digest=skill_catalog_digest,
-            codex_version=codex_version,
-            judge_prompt_digest=prompt_digest,
+            codex_version=version if judge_runtime == "codex" else None,
+            judge_prompt_digest=_judge_prompt_digest(packet_path),
+            judge_runtime=judge_runtime,
+            judge_runtime_version=version,
         )
         if fingerprint != current_fingerprint:
             continue
@@ -871,6 +976,16 @@ def write_rejudged_reports(
         record["original_judge"] = record["judge"]
         record["judge"] = judge
         record["judge_model"] = judgment.get("judge_model", record["judge_model"])
+        for key in ("judge_runtime", "judge_runtime_version"):
+            if key in judgment:
+                record[key] = judgment[key]
+        # codex_version is present exactly when Codex runs the subject or the judge;
+        # a Codex subject keeps its own version.
+        if record_runtime(record) != "codex":
+            if "codex_version" in judgment:
+                record["codex_version"] = judgment["codex_version"]
+            elif record_judge_runtime(record) != "codex":
+                record.pop("codex_version", None)
         record["judge_pass"] = judge_pass
         record["outcome_pass"] = bool(record.get("objective_pass")) and judge_pass
         record["rejudgment"] = {
@@ -895,6 +1010,8 @@ def rejudge_packets(
     *,
     execute: bool,
     codex_executable: str = "codex",
+    claude_executable: str = "claude",
+    judge_runtime: str = "codex",
     records: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     all_packets = sorted((output_dir / "judge-packets").glob("*.json"))
@@ -928,7 +1045,8 @@ def rejudge_packets(
     }
     if not execute:
         return plan
-    codex_version = _codex_version(repo_root, codex_executable)
+    executable = {"codex": codex_executable, "claude": claude_executable}[judge_runtime]
+    version = get_runtime(judge_runtime).version(executable, repo_root)
     skill_paths = discover_skill_paths(repo_root)
     skill_catalog_digest = _skill_catalog_digest(skill_paths)
     completed = 0
@@ -939,16 +1057,10 @@ def rejudge_packets(
             packet_path,
             judge_config,
             skill_catalog_digest=skill_catalog_digest,
-            codex_version=codex_version,
-            judge_prompt_digest=hashlib.sha256(
-                build_judge_command(
-                    packet_path,
-                    repo_root,
-                    judge_config,
-                    codex_executable=codex_executable,
-                    skill_paths=skill_paths,
-                )[-1].encode()
-            ).hexdigest(),
+            codex_version=version if judge_runtime == "codex" else None,
+            judge_prompt_digest=_judge_prompt_digest(packet_path),
+            judge_runtime=judge_runtime,
+            judge_runtime_version=version,
         )
         result_path = _rejudgment_result_path(output_dir, packet_path, fingerprint)
         if result_path.is_file():
@@ -962,7 +1074,8 @@ def rejudge_packets(
                 packet_path,
                 repo_root,
                 judge_config,
-                codex_executable=codex_executable,
+                runtime=judge_runtime,
+                executable=executable,
                 skill_paths=skill_paths,
             )
             judge_attempts.append(result)
@@ -978,7 +1091,9 @@ def rejudge_packets(
             fingerprint,
             {
                 "candidate_id": packet.get("candidate_id"),
-                "codex_version": codex_version,
+                **({"codex_version": version} if judge_runtime == "codex" else {}),
+                "judge_runtime": judge_runtime,
+                "judge_runtime_version": version,
                 "judge_model": {
                     "model": judge_config.model,
                     "reasoning": judge_config.reasoning,
@@ -1001,13 +1116,19 @@ def rejudge_packets(
     return {**plan, "completed": completed}
 
 
+def _judge_prompt_digest(packet_path: Path) -> str:
+    return hashlib.sha256(judge_prompt(packet_path).encode()).hexdigest()
+
+
 def _rejudgment_fingerprint(
     packet_path: Path,
     judge_config: JudgeConfig,
     *,
     skill_catalog_digest: str,
-    codex_version: str,
+    codex_version: str | None,
     judge_prompt_digest: str,
+    judge_runtime: str = "codex",
+    judge_runtime_version: str | None = None,
 ) -> str:
     identity = {
         "packet_digest": hashlib.sha256(packet_path.read_bytes()).hexdigest(),
@@ -1016,6 +1137,9 @@ def _rejudgment_fingerprint(
         "codex_version": codex_version,
         "judge_prompt_digest": judge_prompt_digest,
     }
+    if judge_runtime != "codex":
+        identity["judge_runtime"] = judge_runtime
+        identity["judge_runtime_version"] = judge_runtime_version
     return hashlib.sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()

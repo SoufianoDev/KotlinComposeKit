@@ -19,22 +19,36 @@ def result_fingerprint(
     case_digest: str,
     arm: str,
     skill_sha: str,
-    codex_version: str,
+    codex_version: str | None,
     model: str,
     reasoning: str,
     judge_model: str | None = None,
     judge_reasoning: str | None = None,
     judge_protocol_digest: str | None = None,
     skill_catalog_digest: str | None = None,
+    runtime: str = "codex",
+    runtime_version: str | None = None,
+    judge_runtime: str = "codex",
+    judge_runtime_version: str | None = None,
+    builtin_skills: tuple[str, ...] | None = None,
 ) -> str:
-    fields = {
+    fields: dict[str, Any] = {
         "arm": arm,
         "case_digest": case_digest,
-        "codex_version": codex_version,
         "model": model,
         "reasoning": reasoning,
         "skill_sha": skill_sha,
     }
+    # codex/codex keeps exactly the legacy field set so existing runs still resume.
+    if runtime == judge_runtime == "codex":
+        fields["codex_version"] = codex_version
+    else:
+        if codex_version is not None:
+            fields["codex_version"] = codex_version
+        fields["runtime"] = runtime
+        fields["runtime_version"] = runtime_version
+        fields["judge_runtime"] = judge_runtime
+        fields["judge_runtime_version"] = judge_runtime_version
     if judge_model is not None:
         fields["judge_model"] = judge_model
     if judge_reasoning is not None:
@@ -43,6 +57,8 @@ def result_fingerprint(
         fields["judge_protocol_digest"] = judge_protocol_digest
     if skill_catalog_digest is not None:
         fields["skill_catalog_digest"] = skill_catalog_digest
+    if builtin_skills is not None:
+        fields["builtin_skills"] = sorted(builtin_skills)
     encoded = json.dumps(fields, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
 

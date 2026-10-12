@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from statistics import median
 from typing import Any, Callable, Iterable
 
-from evals.harness.codex import completed_tool_call_count, completed_turn_count
+from evals.harness.runner import get_runtime, record_runtime
 
 
 @dataclass(frozen=True)
@@ -42,6 +41,11 @@ class Scorecard:
     efficiency: dict[str, EfficiencyMetrics]
     skill_efficiency: dict[str, dict[str, EfficiencyMetrics]]
     gates: dict[str, bool]
+    # Diagnostic from observed Skill activations; None without any (Codex has none).
+    observed_routing_precision: float | None = None
+    observed_routing_recall: float | None = None
+    # Isolation-invalid runs per arm: excluded from every metric above.
+    isolation_invalid_counts: dict[str, int] = field(default_factory=dict)
 
 
 def _rate(records: list[dict[str, Any]]) -> float | None:
@@ -60,108 +64,6 @@ def is_automatic_comparator(record: dict[str, Any]) -> bool:
     return record.get("automatic_eligible") is True
 
 
-def _standalone_target_reads(command: str, targets: list[dict[str, Any]]) -> set[str] | None:
-    """Return the target paths printed by a standalone cat command."""
-    try:
-        words = shlex.split(command)
-        if (
-            len(words) == 3
-            and words[0] in ("sh", "bash", "zsh", "/bin/sh", "/bin/bash", "/bin/zsh")
-            and words[1] in ("-c", "-lc")
-        ):
-            words = shlex.split(words[2])
-    except ValueError:
-        return None
-    if not words:
-        return None
-    if words[0] not in ("cat", "/bin/cat", "/usr/bin/cat"):
-        return None
-    operands = words[2:] if len(words) > 1 and words[1] == "--" else words[1:]
-    if not operands:
-        return None
-    matched: set[str] = set()
-    for operand in operands:
-        target = next(
-            (target for target in targets if operand in (
-                target.get("staged_relative_path"), target.get("staged_path")
-            )), None,
-        )
-        if target is None:
-            return None
-        path = target.get("staged_relative_path")
-        if not isinstance(path, str) or path in matched:
-            return None
-        matched.add(path)
-    return matched
-
-
-def _observed_staged_target_read(record: dict[str, Any], targets: list[dict[str, Any]]) -> bool:
-    subject = record.get("subject", {})
-    if not isinstance(subject, dict):
-        return False
-    events = subject.get("events", [])
-    captures = subject.get("captured_skill_files", [])
-    if not isinstance(events, list) or not isinstance(captures, list):
-        return False
-    if not targets or not all(isinstance(target, dict) for target in targets):
-        return False
-    remaining = {target.get("staged_relative_path") for target in targets}
-    if (
-        None in remaining or len(remaining) != len(targets)
-        or any(not isinstance(path, str) or not path.endswith("/SKILL.md") for path in remaining)
-    ):
-        return False
-    active_id = None
-    for event in events:
-        if not isinstance(event, dict) or event.get("type") not in ("item.started", "item.completed"):
-            continue
-        item = event.get("item")
-        if not isinstance(item, dict) or item.get("type") in ("reasoning", "agent_message"):
-            continue
-        if item.get("type") != "command_execution" or item.get("id") is None:
-            return False
-        if event["type"] == "item.started":
-            if active_id is not None:
-                return False
-            active_id = item["id"]
-            continue
-        if active_id is not None and item["id"] != active_id:
-            return False
-        active_id = None
-        if (
-            item.get("status") != "completed"
-            or item.get("exit_code") != 0
-            or not isinstance(item.get("command"), str)
-        ):
-            return False
-        reads = _standalone_target_reads(item["command"], targets)
-        if reads is None or not reads <= remaining:
-            return False
-        for path in reads:
-            target = next(target for target in targets if target["staged_relative_path"] == path)
-            target_sha = target.get("staged_sha256")
-            capture = next(
-                (
-                    captured for captured in captures
-                    if isinstance(captured, dict) and captured.get("path") == path
-                    and captured.get("status") == "complete"
-                    and captured.get("staged_sha256") == target_sha
-                ), None,
-            )
-            if not isinstance(target_sha, str) or not target_sha or capture is None:
-                return False
-            matched_events = capture.get("matched_events")
-            if not isinstance(matched_events, list) or not any(
-                isinstance(match, dict) and match.get("id") == item["id"]
-                for match in matched_events
-            ):
-                return False
-        remaining -= reads
-        if not remaining:
-            return True
-    return False
-
-
 def forced_integrity_status(record: dict[str, Any]) -> str:
     """Classify forced packets without treating missing loads as behavior results."""
     if record.get("arm") != "forced":
@@ -176,7 +78,9 @@ def forced_integrity_status(record: dict[str, Any]) -> str:
     reported_skills = record.get("reported_skills", [])
     if not isinstance(reported_skills, list):
         reported_skills = []
-    if not isinstance(targets, list) or not _observed_staged_target_read(record, targets):
+    if not isinstance(targets, list) or not get_runtime(
+        record_runtime(record)
+    ).forced_target_observed(record, targets):
         return "invocation_failure"
     return (
         "valid"
@@ -189,11 +93,25 @@ def is_valid_forced_evidence(record: dict[str, Any]) -> bool:
     return forced_integrity_status(record) == "valid"
 
 
+def isolation_valid(record: dict[str, Any]) -> bool:
+    """A runtime isolation failure invalidates a run in every arm."""
+    manifest = record.get("forced_target_preflight")
+    return not (
+        isinstance(manifest, dict) and "isolation" in manifest and not manifest.get("valid")
+    )
+
+
 def is_behavioral_evidence(record: dict[str, Any], arm: str) -> bool:
-    return is_measured_in_arm(record, arm) and is_valid_forced_evidence(record)
+    return (
+        is_measured_in_arm(record, arm)
+        and is_valid_forced_evidence(record)
+        and isolation_valid(record)
+    )
 
 
-def _routing_metrics(records: list[dict[str, Any]]) -> tuple[float | None, float | None]:
+def _routing_metrics(
+    records: list[dict[str, Any]], key: str = "reported_skills"
+) -> tuple[float | None, float | None]:
     if not records:
         return None, None
     precision_true_positive = false_positive = 0
@@ -201,7 +119,7 @@ def _routing_metrics(records: list[dict[str, Any]]) -> tuple[float | None, float
     for record in records:
         expected = set(record.get("expected_skills", []))
         allowed = set(record.get("allowed_skills", expected)) | expected
-        reported = set(record.get("reported_skills", []))
+        reported = set(record.get(key, []))
         precision_true_positive += len(allowed & reported)
         false_positive += len(reported - allowed)
         recall_true_positive += len(expected & reported)
@@ -272,7 +190,7 @@ def _subject_tool_calls(record: dict[str, Any]) -> float | None:
         events = attempt.get("events")
         if not isinstance(events, list):
             return None
-        total += completed_tool_call_count(events)
+        total += get_runtime(record_runtime(record)).tool_call_count(events)
     return float(total)
 
 
@@ -309,7 +227,7 @@ def _subject_turns(record: dict[str, Any]) -> float | None:
         retries = subject.get("retries", 0)
         events = subject.get("events")
         if retries == 0 and isinstance(events, list):
-            return float(completed_turn_count(events))
+            return float(get_runtime(record_runtime(record)).turn_count(events))
         return None
     events = subject.get("events")
     if not isinstance(events, list):
@@ -317,7 +235,7 @@ def _subject_turns(record: dict[str, Any]) -> float | None:
     retries = subject.get("retries", 0)
     if isinstance(retries, int) and not isinstance(retries, bool) and retries > 0:
         return None
-    return float(completed_turn_count(events))
+    return float(get_runtime(record_runtime(record)).turn_count(events))
 
 
 def _efficiency_metrics(records: list[dict[str, Any]]) -> EfficiencyMetrics:
@@ -431,8 +349,13 @@ def compute_scorecard(records: Iterable[dict[str, Any]]) -> Scorecard:
         for record in records
         if record.get("arm") == "automatic"
         and is_measured_in_arm(record, "automatic")
+        and isolation_valid(record)
     ]
     routing_precision, routing_recall = _routing_metrics(automatic_records)
+    observed_precision, observed_recall = _routing_metrics(
+        [r for r in automatic_records if r.get("observed_skills") is not None],
+        "observed_skills",
+    )
     router_report_rate = (
         sum(bool(record.get("reported_router")) for record in automatic_records)
         / len(automatic_records)
@@ -503,4 +426,13 @@ def compute_scorecard(records: Iterable[dict[str, Any]]) -> Scorecard:
         efficiency=efficiency,
         skill_efficiency=skill_efficiency,
         gates=gates,
+        observed_routing_precision=observed_precision,
+        observed_routing_recall=observed_recall,
+        isolation_invalid_counts={
+            arm: sum(
+                record.get("arm") == arm and not isolation_valid(record)
+                for record in records
+            )
+            for arm in arms
+        },
     )

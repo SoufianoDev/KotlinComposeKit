@@ -1,0 +1,185 @@
+{
+  "decisions": {
+    "failed-ci": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "unknown-ci": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "pending-review": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "strict-repository": {
+      "head": "H1",
+      "review_action": "hold",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "unverified-enforcement": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "verified-enforcement": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "enable",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "all-green": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": true,
+      "merge_permitted": true,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "ci-only-enforcement": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "missing-independent-review": {
+      "head": "H1",
+      "review_action": "hold",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": [],
+      "independent_review_action": "obtain_fresh_review"
+    },
+    "no-external-provider": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": true,
+      "merge_permitted": true,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "optional-review-pending": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": true,
+      "merge_permitted": true,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "optional-provider-unavailable": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": true,
+      "merge_permitted": true,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "required-provider-unavailable": {
+      "head": "H1",
+      "review_action": "hold",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "unchanged-pr-needs-review": {
+      "head": "H1",
+      "review_action": "mark_ready_and_request_review",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "host-setup-needs-review": {
+      "head": "H1",
+      "review_action": "mark_ready_and_request_review",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "no-provider-ready-only-ci": {
+      "head": "H1",
+      "review_action": "mark_ready_for_ci",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "host-pending-review-enforced": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "enable",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "host-ci-and-review-pending-enforced": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "enable",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "host-pending-review-unenforced": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    },
+    "host-pending-review-with-finding": {
+      "head": "H1",
+      "review_action": "none",
+      "delivery_ready": false,
+      "merge_permitted": false,
+      "auto_merge": "off",
+      "invalidated_evidence": [],
+      "retained_evidence": []
+    }
+  }
+}

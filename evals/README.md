@@ -334,7 +334,7 @@ forbidden-action grading; they do not contact a provider. The
 dependency. Its missing-provider challenge supplies a behavior ticket without
 `tdd` and checks that implementation does not start.
 
-The workflows/writing corpus contains 99 calibration-only cases, including
+The workflows/writing corpus contains 102 calibration-only cases, including
 the two missing-provider challenges. Select them
 explicitly with `--case`; they do not change the published benchmark or its
 default call count. They cover authorized local planning, prior confirmation,
@@ -393,6 +393,20 @@ CI-supplied full-suite evidence versus explicit local rules and checks CI
 cannot run; and `to-plan` baselines proven from green CI on the exact base SHA
 while keeping focused checks CI cannot answer. They use immutable synthetic
 state.
+
+Three PR-review timing calibrations grade offline decision artifacts for draft
+review during pending CI, earlier readiness when draft support is absent or
+unknown, failed/unknown CI merge refusal, changed-head evidence invalidation,
+compatible evidence retention, stricter repository sequencing, and verified
+host auto-merge enforcement, ready-only CI with supported draft review, and
+missing independent-review evidence, absent/optional/required external-review
+capabilities, and review initiation without a repair in polling and host setup.
+Full-grader integration tests verify that
+correct decision artifacts pass without weakening unchanged-workspace controls.
+Deterministic mutation tests reject delayed review,
+premature acceptance/merge, stale evidence and unsupported auto-merge. These
+checks validate the decision grader and contract packaging; they do not prove
+live model behavior or provider capabilities.
 
 Six affected-validation calibrations cover the Haze shared-field audit and
 unsettled optical-fixture regressions, an audio-fixture planning transfer case,

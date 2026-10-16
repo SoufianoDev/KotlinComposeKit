@@ -43,6 +43,9 @@ Do not start persistent polling for a one-off inspection, no open targets, or an
    an unavailable owner, uncertain existing claim or unknown writer state holds
    code writes until reconciled, with writers quiescent before any explicit
    reassignment. This fallback supplies neither missing scope nor extra grants.
+   Reconcile applicable current-head review initiation under
+   [PR review timing](references/pr-review-timing.md) on acquisition and relevant
+   wakes, even without repairs; one-off inspections stay read-only.
 3. Before repeated polling, use one lowest-cost capable read-only evidence
    helper when available. Select and brief it using the shared
    [selection and handoff reference](references/subagent-selection.md)
@@ -72,11 +75,15 @@ Do not start persistent polling for a one-off inspection, no open targets, or an
    Run focused checks during repair and required full checks on the meaningful
    integrated candidate before pushing, except where the PR's required CI runs
    the same full suite and no repository or provider rule requires a local run;
-   then CI on the pushed head supplies that evidence before ready or merge. Reuse valid evidence; repeat only checks
-   invalidated by changes, unknown impact, or explicit repository/provider rules.
+   then CI on the pushed head supplies that evidence before delivery acceptance
+   or merge. Obtain or renew applicable independent review under PR review timing
+   before push. Preserve stricter repository/provider rules; renew affected checks
+   or broaden when impact is unknown. Reuse demonstrably compatible evidence.
    Do not use CI as an iterative test runner or require full checks per slice
    commit. Hold the push while checks required before push fail or lack evidence; a
-   CI-supplied full suite gates ready or merge instead.
+   CI-supplied full suite gates acceptance or merge instead. Reassess evidence
+   after each head change under PR review timing; renew affected independent
+   review before pushing repairs.
    Reply after an addressed change or answer; resolve its thread only after the reply and required push succeed.
    Do not combine heads, push after every comment, resolve a local-only fix, or comment when nothing changed.
 7. Recheck CI after the verified repair push; return to step 6 on another
@@ -85,10 +92,12 @@ Do not start persistent polling for a one-off inspection, no open targets, or an
    active repair every 30–60 seconds, and after three or more unchanged cycles
    every 10+ minutes. Two unchanged cycles remain on the normal 2–5 minute
    cadence. Under host-managed monitoring, end the turn after the push instead.
-8. Merge only when requirements and CI are green, conflicts are absent, and the
-   user granted explicit or standing merge authority. Do not infer authority from
+8. Refresh the exact head; merge only when all required checks, reviews and
+   finding dispositions pass and apply to that head, conflicts are absent, and
+   the user granted explicit or standing merge authority. Do not infer authority from
    approval. Under host-managed monitoring, green CI never wakes the session, so
-   enable host auto-merge once the non-CI conditions hold instead, and disable
+   use PR review timing's verified enforcement rule for pending remote gates,
+   and disable
    auto-merge this controller enabled when escalating.
 
 ## Finish or escalate

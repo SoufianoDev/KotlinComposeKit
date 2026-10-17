@@ -127,6 +127,38 @@ def _blocks(event: dict[str, Any], kind: str) -> Iterator[dict[str, Any]]:
         )
 
 
+_STAGED_ENTRYPOINT = re.compile(r"([a-z0-9][a-z0-9-]*)/SKILL\.md")
+_CAT = re.compile(r"""cat\s+(?:--\s+)?(?:"([^"]*)"|'([^']*)'|(\S+))""")
+
+
+def _unreadable_roots(repo_root: Path) -> list[Path]:
+    """Installed skill copies and the source checkout, which subjects must not read."""
+    return [path.resolve() for path in (Path.home() / ".claude", Path.home() / ".agents", repo_root)]
+
+
+def _staged_skill_read(block: dict[str, Any], cwd: str | None) -> str | None:
+    """The public skill whose SKILL.md, staged in this run's own workspace, one whole-file
+    Read or plain `cat` returned (a sibling attempt's or unrelated copy does not count)."""
+    tool_input = block.get("input")
+    if not cwd or not isinstance(tool_input, dict):
+        return None
+    if block.get("name") == "Read":
+        # A limited or offset read omits part of the procedure.
+        if tool_input.get("limit") or tool_input.get("offset") not in (None, 0, 1):
+            return None
+        target = str(tool_input.get("file_path", ""))
+    elif block.get("name") == "Bash":
+        operand = _CAT.fullmatch(str(tool_input.get("command", "")).strip())
+        target = next((group for group in operand.groups() if group), "") if operand else ""
+    else:
+        return None
+    root = os.path.normpath(cwd) + "/.claude/skills/"
+    path = os.path.normpath(os.path.join(cwd, target)) if target else ""
+    match = _STAGED_ENTRYPOINT.fullmatch(path[len(root):]) if path.startswith(root) else None
+    name = canonical_skill_name(match.group(1)) if match else None
+    return name if name and name != ROUTER_SKILL else None
+
+
 def _tool_uses(events: Events) -> Iterator[tuple[int, dict[str, Any]]]:
     for sequence, event in enumerate(events, 1):
         if event.get("type") == "assistant":
@@ -473,6 +505,13 @@ def discover_builtin_skills(
 class ClaudeRuntime:
     name = "claude"
     skill_dir = ".claude/skills"
+    # Claude writes its prose answer first, then a terse structured summary; the
+    # judge reads only the structured fields.
+    answer_instruction = (
+        " The evaluator reads only the final structured `summary` and `evidence`, "
+        "so put your complete answer there, including every recommendation, "
+        "command and caveat."
+    )
 
     def __init__(self, builtin_skills: tuple[str, ...] = ()):
         # Built-ins come from discover_builtin_skills; each unstaged one is switched off.
@@ -489,7 +528,14 @@ class ClaudeRuntime:
         )
 
     def check_workspace(self, workspace: Path) -> None:
-        """Refuse a workspace below CLAUDE.md files that would reach the subject."""
+        """Refuse a workspace the subject could not read, or below CLAUDE.md files."""
+        resolved = workspace.resolve()
+        for hidden in _unreadable_roots(Path(__file__).resolve().parents[2]):
+            if resolved.is_relative_to(hidden):
+                raise ValueError(
+                    f"the Claude workspace {workspace} is inside {hidden}, which subjects "
+                    "cannot read; pass an --output-dir outside the repository and ~/.claude"
+                )
         claude_home = (Path.home() / ".claude").resolve()
         for directory in workspace.resolve().parents:
             if directory == claude_home:
@@ -565,12 +611,17 @@ class ClaudeRuntime:
     ) -> list[str]:
         staged = {*_enabled_skills(case, arm, repo_root), *case.constant_skills}
         review = case.task_mode == "review"
-        settings = {
+        # Installed skill copies and the source checkout must stay unreadable, or an
+        # unstaged (or stale) copy of a skill could reach the subject.
+        hidden = [str(path) for path in _unreadable_roots(repo_root)]
+        filesystem = {"denyRead": hidden}
+        if review:
             # Review Bash may read the workspace but never write it, like Codex read-only.
-            "sandbox": (
-                {**SANDBOX, "filesystem": {"denyWrite": [str(workspace.resolve())]}}
-                if review else SANDBOX
-            ),
+            filesystem["denyWrite"] = [str(workspace.resolve())]
+        settings = {
+            "sandbox": {**SANDBOX, "filesystem": filesystem},
+            # A Read rule also covers Grep and Glob; `//` marks an absolute path.
+            "permissions": {"deny": [f"Read(/{path}/**)" for path in hidden]},
             "autoMemoryEnabled": False,
             "skillOverrides": {
                 skill: "off" for skill in self.builtin_skills if skill not in staged
@@ -654,6 +705,14 @@ class ClaudeRuntime:
             for block in _blocks(event, "tool_result")
             if block.get("is_error") is not True
         }
+        cwd = next(
+            (
+                event.get("cwd")
+                for event in events
+                if event.get("type") == "system" and event.get("subtype") == "init"
+            ),
+            None,
+        )
         observed: list[str] = []
         for _, block in _tool_uses(events):
             if block.get("id") not in completed:
@@ -663,6 +722,9 @@ class ClaudeRuntime:
                 tool_input.get("skill") if isinstance(tool_input, dict) else None
             )
             if block.get("name") == "Skill" and name and name != ROUTER_SKILL:
+                observed.append(name)
+            elif name := _staged_skill_read(block, cwd):
+                # Staged skills are plain files, so reading the entrypoint loads it.
                 observed.append(name)
         return list(dict.fromkeys(observed))
 
@@ -762,8 +824,10 @@ class ClaudeRuntime:
         return (
             f"\n\nInvoke each of the following skill(s) through the Skill tool: {skills}. "
             "Invoke every one of them before any repository inspection or other action."
+            " That Skill-tool load is the skill-entrypoint read any task text permits."
             "\n\nIn the final `skills_used`, include each of these exact public "
-            f"targets whose entrypoint you read and followed: [{skills}]. "
+            f"targets you invoked, even if you conclude its procedure does not "
+            f"apply to the task: [{skills}]. "
             "Omit only these exact evaluator-owned dependency names: "
             f"[{dependencies}]. Exclusions are exact names, not prefixes."
         )

@@ -134,7 +134,8 @@ Claude Code: `claude-haiku-5-5` with high effort, judged by
 [`gpt-6.1-sol`](https://developers.openai.com/api/docs/models/gpt-6.1-sol) with high
 reasoning. The metrics are defined as above, and `—` marks a cell with no
 recorded result. Run provenance and scorecards are in the
-[Claude Code result record](artifacts/2026-10-17-claude-haiku-5-5-results.md).
+[Claude Code result record](artifacts/2026-10-17-claude-haiku-5-5-results.md). Skill and harness changes made after that run are not
+reflected; the next full run refreshes these values.
 
 | Skill | Baseline | Automatic | Restraint |
 | --- | ---: | ---: | ---: |
@@ -196,8 +197,8 @@ Each eligible `case × arm` condition runs three times by default. A case that
 targets no implicitly invokable skill is excluded from the automatic arm before
 execution. The 38-case Compose suite schedules 342 subject calls and 342
 blinded judge calls. The 24-case Kotlin/Gradle suite schedules 216 subject calls
-and 216 blinded judge calls. The 32-case workflows/writing suite schedules 219
-subject calls and 219 blinded judge calls.
+and 216 blinded judge calls. The 38-case workflows/writing suite schedules 264
+subject calls and 264 blinded judge calls.
 
 Codex subject and judge processes use `--ignore-user-config`, explicit
 `skills.config` entries, network-disabled sandboxes, disabled hosted web search,

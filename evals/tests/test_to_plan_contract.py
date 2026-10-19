@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import re
 import unittest
 import tempfile
 import subprocess
@@ -359,6 +360,122 @@ class ContractTest(unittest.TestCase):
         replace_payload(p, t, {'source': source})
         t['source'] = source
         self.assertTrue(validate_effective_contract(p, t))
+
+
+
+def payload_digest(body):
+    """Reference implementation of to-plan's payload digest rule."""
+    return digest(payload_text(body).rstrip('\n'))
+
+
+def payload_text(body):
+    lines = body.replace('\r\n', '\n').split('\n')
+    plan = any(line.startswith('<!-- to-plan:implementation-plan:') for line in lines)
+    heads = ('## Implementation plan', '## Fast path') if plan else None
+    start = next(i for i, line in enumerate(lines) if (
+        line in heads if plan else line.startswith('<!-- ')))
+    dropped, lines = lines[:start], lines[start:]
+    if any(line.startswith('<details>') for line in dropped):
+        while lines[-1] == '':
+            lines.pop()
+        if lines.pop() != '</details>':
+            raise ValueError('missing </details> closer')
+    return '\n'.join(lines)
+
+
+
+def legacy_identity(stored, body):
+    """Reference for the rule's legacy path: a pre-rule digest of the same comment."""
+    value = stored.removeprefix('sha256:')
+    forms = (body, payload_text(body))
+    return value in {digest(text) for form in forms for text in (form, form.rstrip('\n'))}
+
+class PayloadDigestTest(unittest.TestCase):
+    root = Path(__file__).resolve().parents[2]
+
+    def test_github_mode_worked_example_reproduces(self):
+        guide = (self.root / 'skills/to-plan/references/github-mode.md').read_text(encoding='utf-8')
+        section = guide.split('### Payload digest', 1)[1].split('\n### ', 1)[0]
+        body, payload, expected = re.findall(r'`([^`\n]+)`', section.split('For example', 1)[1])[:3]
+        body = body.replace('\\r', '\r').replace('\\n', '\n')
+        self.assertEqual(payload.replace('\\n', '\n'), '## Implementation plan\n\nStep one.')
+        self.assertEqual(expected, payload_digest(body))
+
+    def test_tool_newline_and_presentation_variants_agree(self):
+        payload = '## Implementation plan\n\n**Epoch closure:** null\n\nStep one.'
+        body = '<!-- to-plan:implementation-plan:v2 -->\n\n**Revision:** 2\n\n' + payload + '\n'
+        wrapped = ('<!-- to-plan:implementation-plan:v2 -->\n\n**Revision:** 2\n\nSuperseded by x\n\n'
+                   '<details><summary>Superseded plan</summary>\n\n' + payload + '\n\n</details>\n')
+        variants = [body, body + '\n', body.rstrip('\n'), body.replace('\n', '\r\n'),
+                    wrapped, wrapped.replace('\n', '\r\n')]
+        self.assertEqual({digest(payload)}, {payload_digest(item) for item in variants})
+        self.assertNotEqual(digest(body), payload_digest(body))
+        self.assertNotEqual(payload_digest(body), payload_digest(body.replace('null', '{}')))
+
+    def test_legacy_digests_of_the_same_comment_are_recognized(self):
+        body = '<!-- to-plan:implementation-plan:v2 -->\n\n**Revision:** 1\n\n## Implementation plan\n\nStep one.\n'
+        for stored in (digest(body), digest(body.rstrip('\n')), 'sha256:' + digest(body)):
+            with self.subTest(stored=stored):
+                self.assertTrue(legacy_identity(stored, body))
+        # The pre-rule extracted payload, trailing newline kept.
+        self.assertTrue(legacy_identity(digest('## Implementation plan\n\nStep one.\n'), body))
+        self.assertFalse(legacy_identity(digest(body + '\n'), body))
+        # Wrapping makes a raw-body legacy digest unverifiable, so the fallback skips it.
+        wrapped = body.replace('## Implementation plan', 'Superseded by x\n\n<details><summary>Old</summary>\n\n## Implementation plan') + '\n</details>\n'
+        self.assertEqual(payload_digest(body), payload_digest(wrapped))
+        self.assertFalse(legacy_identity(digest(body), wrapped))
+        self.assertFalse(legacy_identity(digest(body.replace('one', 'two')), body))
+
+    def test_runner_markers_keep_their_whole_body(self):
+        body = '<!-- run-github-project:authority-pause:v1 -->\n\nBlocked: merge.\n'
+        self.assertEqual(digest(body.rstrip('\n')), payload_digest(body + '\n'))
+        wrapped = 'Superseded by x\n\n<details><summary>Old</summary>\n\n' + body + '\n</details>\n'
+        self.assertEqual(payload_digest(body), payload_digest(wrapped))
+        self.assertTrue(legacy_identity(digest(payload_text(wrapped)), wrapped))
+
+    def test_fast_path_revision_starts_at_its_heading(self):
+        payload = '## Fast path\n\nContract digest: abc\n\nEdit one file.'
+        body = ('<!-- to-plan:implementation-plan:v2 -->\n\n**Revision:** 1\n'
+                '**Supersedes:** none\n**Replan report:** none\n\n' + payload + '\n')
+        self.assertEqual(digest(payload), payload_digest(body))
+        with self.assertRaises(StopIteration):
+            payload_digest('<!-- to-plan:implementation-plan:v2 -->\n\nNo heading.\n')
+
+    def test_wrapper_without_its_closer_is_a_blocker(self):
+        body = ('<!-- to-plan:implementation-plan:v2 -->\n\nSuperseded by x\n\n'
+                '<details><summary>Old</summary>\n\n## Implementation plan\n\nStep one.\n'
+                '\nAppended instruction.\n')
+        with self.assertRaises(ValueError):
+            payload_digest(body)
+
+    def test_payload_details_block_is_not_a_wrapper(self):
+        payload = '## Implementation plan\n\n<details><summary>Notes</summary>\n\nKeep.\n\n</details>'
+        body = '<!-- to-plan:implementation-plan:v2 -->\n\n**Revision:** 1\n\n' + payload + '\n'
+        self.assertEqual(digest(payload), payload_digest(body))
+
+    def test_eval_case_overlays_match_expected_digests(self):
+        cases = {
+            'to-plan-payload-digest-direct': ('readback.json', 'Digest'),
+            'run-github-project-payload-digest-novel': ('predecessor.json', 'Predecessor-digest'),
+            'to-plan-payload-digest-restraint-negative': ('active-leaf.json', 'Digest'),
+        }
+        for case_id, (name, field) in cases.items():
+            with self.subTest(case=case_id):
+                directory = self.root / 'evals/cases' / case_id
+                body = json.loads((directory / 'overlay' / name).read_text(encoding='utf-8'))['body']
+                rules = json.loads((directory / 'expectations.json').read_text(encoding='utf-8'))
+                patterns = rules['file_globs'][0]['must_match']
+                self.assertIn(f'^{re.escape(field)}: {payload_digest(body)}$', patterns)
+        novel = self.root / 'evals/cases/run-github-project-payload-digest-novel/overlay'
+        report = json.loads((novel / 'replan-request.json').read_text(encoding='utf-8'))['body']
+        recorded = json.loads(report.split('```json\n')[1].split('\n```')[0])['previousPlanDigest']
+        predecessor = json.loads((novel / 'predecessor.json').read_text(encoding='utf-8'))['body']
+        self.assertEqual(recorded, payload_digest(predecessor))
+        negative = self.root / 'evals/cases/to-plan-payload-digest-restraint-negative/overlay'
+        draft = (negative / '.scratch/plan-draft.md').read_text(encoding='utf-8')
+        leaf = json.loads((negative / 'active-leaf.json').read_text(encoding='utf-8'))['body']
+        self.assertEqual(payload_digest(leaf), payload_digest(draft))
+        self.assertNotEqual(digest(leaf), digest(draft))
 
 
 if __name__ == '__main__':

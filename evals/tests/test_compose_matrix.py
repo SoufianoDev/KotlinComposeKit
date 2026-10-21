@@ -6,7 +6,11 @@ from pathlib import Path
 from evals.harness.cases import EVALUATED_TOPICS, validate_corpus
 from evals.harness.runner import prepare_workspace
 from evals.harness.grade import grade_subject
-from evals.harness.experiment import filter_cases, regrade_records
+from evals.harness.experiment import (
+    filter_cases,
+    reconcile_automatic_eligibility,
+    regrade_records,
+)
 from evals.tests.test_grade import make_result
 
 
@@ -34,6 +38,55 @@ class ComposeMatrixTest(unittest.TestCase):
             self.assertEqual(1, sum(case.provenance["kind"] == "historical" for case in cases))
             negative = next(case for case in cases if case.kind == "negative")
             self.assertEqual((skill,), negative.expected_skills)
+
+    def test_gradle_run_is_expected_only_after_gradle_executes_in_compose_cases(self):
+        report = validate_corpus(REPO_ROOT, suite="compose")
+        case = next(c for c in report.cases if c.id == "compose-animations-direct")
+        self.assertNotIn("gradle-run", case.allowed_skills)
+
+        def record(command, exit_code=0):
+            return {
+                "case_id": case.id,
+                "arm": "automatic",
+                "subject": {
+                    "events": [
+                        {
+                            "type": "item.completed",
+                            "item": {
+                                "type": "command_execution",
+                                "command": command,
+                                "exit_code": exit_code,
+                                "status": "completed",
+                            },
+                        }
+                    ]
+                },
+            }
+
+        records = [
+            record("rg --files -g 'gradlew'"),
+            record("./gradlew --offline test"),
+            record("./gradlew --offline test", exit_code=1),
+            record("test -x ./gradlew && ./gradlew --offline test", exit_code=1),
+            record("true || ./gradlew --offline test"),
+            record("./gradlew --offline test || true"),
+            record("false || ./gradlew --offline test"),
+            record("false && ./gradlew --offline test || true"),
+            record("test -d build || mkdir build; ./gradlew --offline test"),
+            record("./gradlew --offline test; echo done"),
+            record("./gradlew --offline test && echo ok", exit_code=1),
+            record("./gradlew --offline test 2>&1 | tail -5"),
+            record("true && ./gradlew --offline test", exit_code=1),
+            record("if test -x ./gradlew; then ./gradlew --offline test; fi", exit_code=1),
+            record("./gradlew --offline test; if true; then echo done; fi", exit_code=1),
+        ]
+        reconcile_automatic_eligibility(REPO_ROOT, [case], records)
+        ran = [
+            "gradle-run" in r["expected_skills"] and "gradle-run" in r["allowed_skills"]
+            for r in records
+        ]
+        # A failed lone run or the head of an OR chain ran; a skipped branch never did.
+        self.assertEqual([False, True, True, False, False, True, True, False, True, True, True, True, True, False, True], ran)
 
     def test_calibration_cases_require_explicit_selection(self):
         report = validate_corpus(REPO_ROOT, suite="compose")

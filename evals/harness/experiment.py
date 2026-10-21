@@ -13,7 +13,16 @@ from typing import Any, Iterable
 from evals.harness.cases import EvalCase
 from evals.harness.claude import ClaudeRuntime, discover_builtin_skills
 from evals.harness.codex import discover_skill_paths
-from evals.harness.grade import ObjectiveGrade, _event_invocations, grade_subject
+from evals.harness.grade import (
+    ObjectiveGrade,
+    _command_invocations,
+    _command_text,
+    _SHELL_CONTROL_WORDS,
+    _segment_invocations,
+    _shell_parts,
+    _successful_command_invocations,
+    grade_subject,
+)
 from evals.harness.judge import (
     JudgeConfig,
     JudgeResult,
@@ -130,12 +139,57 @@ def _apply_routing_expectations(
     record["automatic_eligible"] = _automatic_eligible(case, repo_root)
 
 
+def _definite_segments(
+    segments: tuple[tuple[str, ...], ...], separators: tuple[str, ...]
+) -> list[tuple[str, ...]]:
+    """Segments that always ran: sequence heads, their pipe partners, `false ||` and `true &&` successors."""
+    # An if, for or while body may be skipped, so stop at the first one.
+    cut = next(
+        (i for i, s in enumerate(segments) if s and s[0] in _SHELL_CONTROL_WORDS),
+        len(segments),
+    )
+    segments, separators = segments[:cut], separators[: max(cut - 1, 0)]
+    definite: list[tuple[str, ...]] = []
+    previous = False
+    for index, segment in enumerate(segments):
+        before = separators[index - 1] if index else None
+        ran = (
+            before is None
+            or (before == "|" and previous)
+            or before not in {"&&", "||", "|"}
+            or (before == "||" and previous and segments[index - 1] == ("false",))
+            or (before == "&&" and previous and segments[index - 1] == ("true",))
+        )
+        if ran:
+            definite.append(segment)
+        previous = ran
+    return definite
+
+
+def _executed_invocations(commands: Iterable[Any]) -> tuple[str, ...]:
+    """Return invocations that surely ran, whatever the command's exit status."""
+    invocations: list[tuple[str, ...]] = []
+    for record in commands:
+        command = _command_text(record)
+        if not isinstance(command, str) or record.status == "denied":
+            continue
+        segments, separators = _shell_parts(command)
+        for segment in _definite_segments(segments, separators):
+            invocations.extend(_segment_invocations(segment, successful_only=True))
+        if record.exit_code == 0:
+            invocations.extend(_successful_command_invocations(command))
+    # shortcut: shell conditions are not evaluated. Known misses: a Gradle run after a
+    # completed if/for block or behind `false && true ||`; known false hit:
+    # `bash -c 'false && gradle' || true`. Upgrade if such commands appear in real transcripts.
+    return tuple(shlex.join(invocation) for invocation in dict.fromkeys(invocations))
+
+
 def _gradle_was_executed(events: object, runtime: str) -> bool:
     if not isinstance(events, (list, tuple)):
         return False
     normalized_events = tuple(event for event in events if isinstance(event, dict))
     commands = get_runtime(runtime).commands(normalized_events)
-    for invocation in _event_invocations(commands):
+    for invocation in _executed_invocations(commands):
         try:
             words = shlex.split(invocation)
         except ValueError:
@@ -170,12 +224,16 @@ def _result_routing_expectations(
     runtime: str,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     expected_skills, allowed_skills = _routing_expectations(case, arm, repo_root)
-    if arm == "automatic" and "gradle-run" in allowed_skills:
-        if _gradle_was_executed(events, runtime):
-            if "gradle-run" not in expected_skills:
-                expected_skills = (*expected_skills, "gradle-run")
-        elif "gradle-run" not in expected_skills:
-            allowed_skills = tuple(skill for skill in allowed_skills if skill != "gradle-run")
+    if arm != "automatic" or case.automatic_no_skill_control:
+        return expected_skills, allowed_skills
+    # Running Gradle makes gradle-run expected in every case, not only those that list it.
+    if _gradle_was_executed(events, runtime):
+        if "gradle-run" not in expected_skills:
+            expected_skills = (*expected_skills, "gradle-run")
+        if "gradle-run" not in allowed_skills:
+            allowed_skills = (*allowed_skills, "gradle-run")
+    elif "gradle-run" in allowed_skills and "gradle-run" not in expected_skills:
+        allowed_skills = tuple(skill for skill in allowed_skills if skill != "gradle-run")
     return expected_skills, allowed_skills
 
 

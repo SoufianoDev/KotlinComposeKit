@@ -4,7 +4,7 @@ Instructions for AI agents (Claude Code, etc.) working in this repo.
 
 ## When adding, renaming, or removing a skill
 
-1. **Update `README.md`** — keep the "Skills" list in sync. Each entry links to the skill's `SKILL.md` and summarises what it covers. If you add a skill and don't update the README, the change is incomplete.
+1. **Update `README.md`** — keep the guidance-module index in sync. Each entry links to the skill's `SKILL.md` and summarises what it covers. If you add a skill and don't update the README, the change is incomplete.
 2. **Add evaluation coverage** — add the new skill to the relevant evaluation suite, with direct, novel, and no-change cases that exercise its expected behavior and restraint. Keep those cases in `evals/`, with deterministic validation where applicable; runtime `SKILL.md` files do not carry RED/GREEN scenario sections. A new skill is incomplete without evaluation coverage.
 3. **Do not update plugin or skill versions unless explicitly asked.** If the user asks for a release/version bump, use the release system below.
 
@@ -61,7 +61,7 @@ Before considering any skill addition or edit complete, verify:
 
 - Root `plugin.json`, `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`, `.agents/plugins/marketplace.json`, and `.codex-plugin/plugin.json` are all JSON (not JSONC). Validate with `jq . <file>` before committing.
 - Root `plugin.json` targets Agent Plugins v1.0.0 and contains only portable schema fields. Keep client-specific fields in the client manifests.
-- The plugin `name` field in all three manifests must stay `chrisbanes-skills`.
+- Keep the plugin/package identifier `kotlin-compose-kit` consistent across `package.json`, root `plugin.json`, the Claude Code and Codex manifests, and the Agent Plugin marketplaces. The OpenCode plugin ID and entrypoint must use the same identity.
 
 ## Commits and PRs
 

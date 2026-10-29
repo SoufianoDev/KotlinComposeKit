@@ -1,12 +1,12 @@
 {
-  "name": "chrisbanes-skills",
+  "name": "kotlin-compose-kit",
   "version": "2026.10.26",
-  "description": "Skills for Kotlin, Android, JVM, and Jetpack Compose development by Chris Banes.",
+  "description": "Kotlin, Android, JVM, and Jetpack Compose engineering guidance and workflows maintained by SoufianoDev.",
   "author": {
-    "name": "Chris Banes",
-    "url": "https://github.com/chrisbanes"
+    "name": "SoufianoDev",
+    "url": "https://github.com/SoufianoDev"
   },
-  "repository": "https://github.com/chrisbanes/skills",
+  "repository": "https://github.com/SoufianoDev/KotlinComposeKit",
   "license": "Apache-2.0",
   "keywords": [
     "kotlin",
@@ -16,15 +16,15 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Chris Banes Skills",
-    "shortDescription": "Kotlin, Android, and Jetpack Compose development skills.",
-    "longDescription": "A set of Codex skills for Kotlin, Android, JVM, and Jetpack Compose development.",
-    "developerName": "Chris Banes",
+    "displayName": "KotlinComposeKit",
+    "shortDescription": "Kotlin, Android, and Jetpack Compose engineering guidance.",
+    "longDescription": "Focused guidance and workflows for Kotlin, Android, JVM, and Jetpack Compose development.",
+    "developerName": "SoufianoDev",
     "category": "Developer Tools",
     "capabilities": [
       "Skills"
     ],
-    "websiteURL": "https://github.com/chrisbanes/skills",
+    "websiteURL": "https://github.com/SoufianoDev/KotlinComposeKit",
     "defaultPrompt": [
       "Review this Compose state model.",
       "Check this Flow event design.",

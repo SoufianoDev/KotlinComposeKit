@@ -1,10 +1,13 @@
 {
-  "name": "chrisbanes-skills",
+  "name": "kotlin-compose-kit",
   "owner": {
-    "name": "Chris Banes",
-    "url": "https://github.com/chrisbanes"
+    "name": "SoufianoDev",
+    "url": "https://github.com/SoufianoDev"
   },
   "plugins": [
-    { "name": "chrisbanes-skills", "source": "./" }
+    {
+      "name": "kotlin-compose-kit",
+      "source": "./"
+    }
   ]
 }

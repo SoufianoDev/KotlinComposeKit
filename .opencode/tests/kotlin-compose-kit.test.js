@@ -5,10 +5,10 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { load } from "js-yaml";
-import definition, { ChrisBanesSkillsPlugin } from "../plugins/chrisbanes-skills.js";
+import definition, { KotlinComposeKitPlugin } from "../plugins/kotlin-compose-kit.js";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const marker = "CHRISBANES_SKILLS_OPENCODE_GUIDANCE";
+const marker = "KOTLIN_COMPOSE_KIT_OPENCODE_GUIDANCE";
 
 async function register(plugin = definition) {
   let transform;
@@ -43,9 +43,9 @@ function replay(transform) {
 async function fixture(t, files = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-plugin-test-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
-  const entry = path.join(directory, ".opencode/plugins/chrisbanes-skills.js");
+  const entry = path.join(directory, ".opencode/plugins/kotlin-compose-kit.js");
   await fs.mkdir(path.dirname(entry), { recursive: true });
-  await fs.copyFile(path.join(root, ".opencode/plugins/chrisbanes-skills.js"), entry);
+  await fs.copyFile(path.join(root, ".opencode/plugins/kotlin-compose-kit.js"), entry);
   await fs.writeFile(path.join(directory, "package.json"), '{"type":"module"}');
   await fs.symlink(path.join(root, "node_modules"), path.join(directory, "node_modules"));
   for (const [name, content] of Object.entries(files)) {
@@ -57,8 +57,8 @@ async function fixture(t, files = {}) {
 }
 
 test("the package exposes separate V1 and V2 entrypoints", () => {
-  assert.equal(definition.id, "chrisbanes-skills");
-  assert.equal(definition.server, ChrisBanesSkillsPlugin);
+  assert.equal(definition.id, "kotlin-compose-kit");
+  assert.equal(definition.server, KotlinComposeKitPlugin);
   assert.equal(typeof definition.setup, "function");
 });
 
@@ -149,13 +149,13 @@ test("a missing skills directory warns without advertising unavailable skills", 
   assert.equal(registration.transform, undefined);
   assert.equal(registration.hook, undefined);
   assert.equal(warnings.mock.callCount(), 1);
-  assert.match(warnings.mock.calls[0].arguments[0], /Skills directory not found/);
+  assert.match(warnings.mock.calls[0].arguments[0], /Guidance module directory not found/);
   const logged = [];
   const hooks = await plugin.server({ client: { app: { log: async (entry) => logged.push(entry) } } });
   const config = {};
   await hooks.config(config);
   assert.deepEqual(config, {});
-  assert.match(logged[0].body.message, /Skills directory not found/);
+  assert.match(logged[0].body.message, /Guidance module directory not found/);
 });
 
 test("malformed metadata fails setup before any partial registration", async (t) => {

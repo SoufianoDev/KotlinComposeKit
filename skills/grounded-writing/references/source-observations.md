@@ -1,10 +1,6 @@
-# Chris Banes's writing: source observations
+# Historical upstream writing references
 
-Use only Chris's own prose as style evidence. These observations come from the
-posts below; references or quotations within them are not additional voice
-sources. Prefer the restrained recent register, using the playful tutorial
-register when appropriate to the task. Preserve reasoning habits without
-copying phrases, typos, or unsupported claims.
+This file records source observations used by the upstream version of the writing guidance. It is retained for provenance only. These sources are not the voice model for KotlinComposeKit, and their authors' experiences or opinions must not be attributed to SoufianoDev. The active editorial rules are defined in [style-profile.md](style-profile.md).
 
 - [Shopping Is Not a Category](https://chrisbanes.me/posts/shopping-is-not-a-category/)
   (22 July 2026) opens with a personal budgeting problem, connects bank data to

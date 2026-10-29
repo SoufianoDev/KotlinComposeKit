@@ -42,6 +42,41 @@ Or install as an OpenCode V2 plugin (2.0.22 or newer):
 OpenCode V1 1.18.29 or newer uses `plugin` instead of `plugins`.
 See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for details.
 
+### MiMo Code
+
+MiMo Code loads this repository's `SKILL.md` files natively. This integration uses
+the native skill loader rather than a JavaScript plugin. The Python installer
+copies skills from `skills/` into a directory MiMo Code discovers and uses only
+Python's standard library.
+
+Run this from a checkout of the repository to install the skills for your user:
+
+```sh
+python3 scripts/install_mimocode_skills.py --scope user
+```
+
+The installer respects MiMo Code's configured paths: `MIMOCODE_HOME/config/skills`
+when `MIMOCODE_HOME` is set, then `XDG_CONFIG_HOME/mimocode/skills`, or
+`~/.config/mimocode/skills` by default. On Windows, it uses
+`APPDATA/mimocode/skills` when available.
+
+To install into a specific project, use MiMo Code's supported Agent Skills
+compatibility directory:
+
+```sh
+python3 scripts/install_mimocode_skills.py --scope project --project-dir /absolute/path/to/your/project
+```
+
+The project destination is `.agents/skills/`. Set `--destination` to an absolute
+path to choose another supported skill directory, or use `--dry-run` to preview
+the installation. Existing skill directories are skipped by default to preserve
+local changes; add `--force` to update repository-managed files while retaining
+extra local files. The installer refuses symlinked skill sources and destinations
+when an update would write through them.
+
+See MiMo Code's official [Agent Skills documentation](https://mimo.xiaomi.com/mimocode/skills)
+for supported discovery paths and troubleshooting.
+
 ### External skill providers
 
 Most skills in this repository are self-contained. The workflows below compose

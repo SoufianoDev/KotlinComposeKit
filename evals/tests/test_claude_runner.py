@@ -296,7 +296,7 @@ class ClaudeParseTest(unittest.TestCase):
             "chrisbanes-skills:kotlin-api-design"
         )
         router = json.loads(json.dumps(lines[1]))
-        router["message"]["content"][0]["input"]["skill"] = "using-chrisbanes-skills"
+        router["message"]["content"][0]["input"]["skill"] = "using-kotlin-compose-kit"
         lines.insert(2, router)
         events = self.runtime.parse(fixture_stdout(lines))[0]
         self.assertEqual(["kotlin-api-design"], self.runtime.observed_skills(events))

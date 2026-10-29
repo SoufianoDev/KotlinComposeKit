@@ -40,9 +40,9 @@ class CaseContractTest(unittest.TestCase):
         (self.root / "skills" / "compose-state-and-effects" / "SKILL.md").write_text(
             "---\nname: compose-state-and-effects\n---\n", encoding="utf-8"
         )
-        (self.root / "skills" / "using-chrisbanes-skills").mkdir(parents=True)
-        (self.root / "skills" / "using-chrisbanes-skills" / "SKILL.md").write_text(
-            "---\nname: using-chrisbanes-skills\n---\n", encoding="utf-8"
+        (self.root / "skills" / "using-kotlin-compose-kit").mkdir(parents=True)
+        (self.root / "skills" / "using-kotlin-compose-kit" / "SKILL.md").write_text(
+            "---\nname: using-kotlin-compose-kit\n---\n", encoding="utf-8"
         )
         (self.root / "evals" / "fixtures" / "compose-jvm").mkdir(parents=True)
 
@@ -150,6 +150,16 @@ class CaseContractTest(unittest.TestCase):
 
         with self.assertRaisesRegex(CaseValidationError, "full lowercase Git SHA"):
             load_case(case_dir / "case.json", self.root)
+
+    def test_requires_current_router_even_when_obsolete_router_exists(self):
+        current = self.root / "skills" / "using-kotlin-compose-kit"
+        current.rename(self.root / "skills" / "using-chrisbanes-skills")
+
+        with self.assertRaisesRegex(
+            CaseValidationError,
+            "missing router path: skills/using-kotlin-compose-kit/SKILL.md",
+        ):
+            validate_corpus(self.root, allow_incomplete=True)
 
     def test_reports_incomplete_corpus_without_weakening_strict_validation(self):
         self.write_case(valid_manifest())

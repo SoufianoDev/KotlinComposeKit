@@ -567,7 +567,8 @@ class CodexRunnerTest(unittest.TestCase):
         self.assertIn("+# Local plan", result.diff)
 
     def test_codex_command_lines_and_prompts_are_byte_identical(self):
-        # Golden digests captured before the runtime seam; any change is a Codex break.
+        # Golden digest from before the runtime seam, updated for the router rename.
+        # Other command and prompt bytes retain the original contract.
         from evals.harness.judge import JudgeConfig, build_judge_command
 
         catalog = discover_skill_paths(self.root, roots=(self.root / "skills",))
@@ -596,7 +597,7 @@ class CodexRunnerTest(unittest.TestCase):
             rendered = rendered.replace(root, "<root>")
 
         self.assertEqual(
-            "c82199737a3442412aa20d550b6e9ebfd01e85dc6207f370a63beac9469710aa",
+            "0ddc81b67ce59dff4e866a59012446c4cd79ef0e1e74d6afb82a857820cfb58e",
             hashlib.sha256(rendered.encode()).hexdigest(),
         )
 

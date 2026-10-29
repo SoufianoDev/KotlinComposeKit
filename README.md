@@ -161,11 +161,14 @@ This is a breaking taxonomy change. Replace the removed entrypoints as follows:
 
 | Removed skills | Replacement |
 |---|---|
+| `using-chrisbanes-skills` | [`using-kotlin-compose-kit`](skills/using-kotlin-compose-kit/SKILL.md) |
 | `compose-state-authoring`, `compose-state-hoisting`, `compose-side-effects` | [`compose-state-and-effects`](skills/compose-state-and-effects/SKILL.md) |
 | `compose-recomposition-performance`, `compose-stability-diagnostics`, `compose-state-deferred-reads` | [`compose-performance`](skills/compose-performance/SKILL.md) |
 | `compose-modifier-and-layout-style`, `compose-slot-api-pattern` | [`compose-component-design`](skills/compose-component-design/SKILL.md) |
 | `kotlin-coroutines-structured-concurrency`, `kotlin-flow-state-event-modeling` | [`kotlin-concurrency-and-flow`](skills/kotlin-concurrency-and-flow/SKILL.md) |
 | `kotlin-functions`, `kotlin-types-value-class`, `kotlin-multiplatform-expect-actual` | [`kotlin-api-design`](skills/kotlin-api-design/SKILL.md) |
+
+See the [release notes](RELEASE_NOTES.md) for the router rename.
 
 ## Project ownership and upstream attribution
 

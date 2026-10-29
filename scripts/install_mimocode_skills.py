@@ -91,6 +91,9 @@ def install_skills(
 
     if destination.is_symlink():
         raise ValueError("Refusing symlinked destination directory: {}".format(destination))
+    for parent in destination.absolute().parents:
+        if parent.is_symlink():
+            raise ValueError("Refusing symlinked destination ancestor: {}".format(parent))
     if destination.exists() and not destination.is_dir():
         raise ValueError("Destination exists and is not a directory: {}".format(destination))
 

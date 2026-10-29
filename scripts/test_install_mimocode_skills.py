@@ -124,6 +124,29 @@ class MiMoCodeSkillInstallerTest(unittest.TestCase):
             self.assertEqual((), skipped)
             self.assertFalse(destination.exists())
 
+    def test_refuses_symlinked_destination_and_ancestors_before_writes(self):
+        for suffix, existing in ((".", True), ("skills", True), ("skills", False), ("missing/skills", False)):
+            with self.subTest(suffix=suffix, existing=existing), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source_skill = root / "source" / "compose-helper"
+                source_skill.mkdir(parents=True)
+                (source_skill / "SKILL.md").write_text("new\n", encoding="utf-8")
+                external = root / "external"
+                external.mkdir()
+                if existing:
+                    (external / suffix).mkdir(parents=True, exist_ok=True)
+                before = sorted(external.rglob("*"))
+                linked = root / "linked"
+                try:
+                    linked.symlink_to(external, target_is_directory=True)
+                except OSError as error:
+                    self.skipTest("Symlink creation is unavailable: {}".format(error))
+
+                with self.assertRaisesRegex(ValueError, "symlinked destination"):
+                    install_skills(root / "source", linked / suffix)
+
+                self.assertEqual(before, sorted(external.rglob("*")))
+
     def test_force_refuses_to_write_through_symlink_in_existing_skill(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -135,7 +158,10 @@ class MiMoCodeSkillInstallerTest(unittest.TestCase):
             (source_skill / "SKILL.md").write_text("new\n", encoding="utf-8")
             (target / "SKILL.md").write_text("old\n", encoding="utf-8")
             external.write_text("outside\n", encoding="utf-8")
-            (target / "external.md").symlink_to(external)
+            try:
+                (target / "external.md").symlink_to(external)
+            except OSError as error:
+                self.skipTest("Symlink creation is unavailable: {}".format(error))
 
             with self.assertRaisesRegex(ValueError, "symlinks"):
                 install_skills(root / "source", target.parent, force=True)

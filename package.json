@@ -4,7 +4,7 @@
   "description": "Kotlin, Android, JVM, and Jetpack Compose engineering guidance and workflows maintained by SoufianoDev.",
   "type": "module",
   "main": ".opencode/plugins/kotlin-compose-kit.js",
-  "repository": "https://github.com/SoufianoDev/KotlinComposeKit",
+  "repository": "https://github.com/SoufianoDev/kotlin-compose-skills",
   "license": "Apache-2.0",
   "scripts": {
     "build": "python3 scripts/sync_references.py --check",

@@ -44,9 +44,11 @@ The shared plugin entrypoint also retains OpenCode V1 1.18.29+ compatibility.
 Use the V1-specific installation command in [`.opencode/INSTALL.md`](.opencode/INSTALL.md);
 the V2 `plugin add` command is for V2 only.
 
-OpenCode manages the global V2 plugin configuration. Restart OpenCode if it is
-already running. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for
-verification, updating, removal, and troubleshooting.
+OpenCode manages the global V2 plugin configuration. Changes in watched
+configuration directories reload automatically; restart OpenCode only if an
+already-running instance does not pick up the plugin. See
+[`.opencode/INSTALL.md`](.opencode/INSTALL.md) for verification, updating,
+removal, and troubleshooting.
 
 
 ### MiMo Code

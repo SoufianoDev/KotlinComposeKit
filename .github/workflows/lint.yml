@@ -26,3 +26,15 @@ jobs:
       - run: npm run evals:validate
 
       - run: npm test
+
+  windows-opencode-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test the PowerShell installer
+        run: python -m unittest scripts.test_install_opencode.OpenCodePowerShellInstallerTests

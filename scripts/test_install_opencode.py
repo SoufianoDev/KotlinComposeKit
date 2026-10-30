@@ -72,7 +72,7 @@ class OpenCodeInstallerTests(unittest.TestCase):
 
 
 class OpenCodePowerShellInstallerTests(unittest.TestCase):
-    powershell = shutil.which("pwsh") or shutil.which("powershell")
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
     installer = ROOT / "scripts" / "install-opencode.ps1"
 
     def run_installer(self, version, *, present=True):

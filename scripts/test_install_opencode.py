@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -21,15 +20,6 @@ def path_without_opencode(directory):
                 (tools / name).symlink_to(executable)
     return str(tools)
 
-
-def add_host_opencode(directory):
-    executable = directory / ("opencode.cmd" if os.name == "nt" else "opencode")
-    executable.write_text(
-        '@echo 2.0.22\r\n' if os.name == "nt" else '#!/bin/sh\nprintf "2.0.22\\n"\n',
-        encoding="utf-8",
-    )
-    if os.name != "nt":
-        executable.chmod(0o755)
 
 
 class OpenCodeInstallerTests(unittest.TestCase):
@@ -66,7 +56,7 @@ class OpenCodeInstallerTests(unittest.TestCase):
         result, args = self.run_installer("2.0.22")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(args, [
-            "plugin", "add", "github:SoufianoDev/KotlinComposeKit", "--global"
+            "plugin", "add", "github:SoufianoDev/KotlinComposeKit"
         ])
 
     def test_v1_uses_legacy_global_plugin_command(self):
@@ -90,11 +80,8 @@ class OpenCodeInstallerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Unsupported OpenCode version", result.stderr)
 
-    def test_requires_opencode(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            add_host_opencode(pathlib.Path(temporary))
-            with mock.patch.dict(os.environ, {"PATH": temporary + os.pathsep + os.environ.get("PATH", "")}):
-                result, _ = self.run_installer("2.0.22", present=False)
+    def test_requires_opencode_even_when_host_path_has_other_tools(self):
+        result, _ = self.run_installer("2.0.22", present=False)
         self.assertEqual(result.returncode, 127)
         self.assertIn("OpenCode was not found", result.stdout)
 
@@ -167,7 +154,7 @@ class OpenCodePowerShellInstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             args,
-            ["plugin", "add", "github:SoufianoDev/KotlinComposeKit", "--global"],
+            ["plugin", "add", "github:SoufianoDev/KotlinComposeKit"],
         )
 
     @unittest.skipUnless(powershell, "PowerShell is not installed")
@@ -191,11 +178,8 @@ class OpenCodePowerShellInstallerTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
 
     @unittest.skipUnless(powershell, "PowerShell is not installed")
-    def test_requires_opencode(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            add_host_opencode(pathlib.Path(temporary))
-            with mock.patch.dict(os.environ, {"PATH": temporary + os.pathsep + os.environ.get("PATH", "")}):
-                result, _ = self.run_installer("2.0.22", present=False)
+    def test_requires_opencode_even_when_host_path_has_other_tools(self):
+        result, _ = self.run_installer("2.0.22", present=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("OpenCode was not found", result.stderr)
 

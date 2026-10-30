@@ -6,31 +6,48 @@
 
 ## Installation
 
-Add the plugin to your `opencode.json` or `opencode.jsonc`, either globally or in a project.
+### Windows PowerShell
 
-### OpenCode V2
+Run this command in PowerShell 5.1 or newer, from any directory:
 
-Use the `plugins` array:
-
-```json
-{
-  "plugins": ["kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git"]
-}
+```powershell
+irm https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.ps1 | iex
 ```
 
-### OpenCode V1
+The PowerShell installer checks that OpenCode is installed, detects its major
+version, and calls OpenCode's native global plugin installer.
 
-Use the `plugin` array:
+### macOS and Linux
 
-```json
-{
-  "plugin": ["kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git"]
-}
+Run this command from any directory:
+
+```sh
+(
+  tmp="$(mktemp)" &&
+  trap 'rm -f "$tmp"' EXIT &&
+  curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
+  sh "$tmp"
+)
 ```
 
-Restart OpenCode. The plugin installs through OpenCode's plugin manager, registers the repository's skills, and adds short routing guidance for Kotlin, Android, JVM, and Jetpack Compose tasks.
+The shell installer performs the same version check and invokes the matching
+native global plugin command.
 
-V1 retains its existing user-message guidance. V2 adds the guidance to each outgoing agent request's system context without changing stored conversation history. Skills marked `disable-model-invocation: true` remain available for explicit loading and are not advertised for automatic invocation in V2.
+Both installers support:
+
+- OpenCode V1 1.18.29 or newer.
+- OpenCode V2 2.0.22 or newer.
+
+The plugin is installed globally, so it is available across projects. The
+installers do not modify project files or manually rewrite your OpenCode JSON
+configuration. OpenCode's own CLI manages the global plugin entry.
+
+To install or update manually, use the matching native command:
+
+- V1: `opencode plugin 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global`
+- V2: `opencode plugin add github:SoufianoDev/KotlinComposeKit` (adds the plugin to global configuration by default)
+
+Restart OpenCode after installation if it is already running.
 
 ## Verify
 

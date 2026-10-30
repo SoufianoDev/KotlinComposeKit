@@ -118,7 +118,7 @@ class OpenCodePowerShellInstallerTests(unittest.TestCase):
                 env=env,
                 check=False,
             )
-            calls = log.read_text(encoding="utf-8").strip().split()
+            calls = log.read_text(encoding="utf-8").strip().split() if log.exists() else []
             return result, calls
 
     @unittest.skipUnless(powershell, "PowerShell is not installed")

@@ -23,7 +23,7 @@ to the global plugin configuration. Restart OpenCode if it was already running.
 Use OpenCode V1's legacy plugin manager command:
 
 ```sh
-opencode plugin 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global
+opencode plugin 'git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global
 ```
 
 The V1 `server` entrypoint remains available for existing V1 installations.

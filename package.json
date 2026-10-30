@@ -7,15 +7,16 @@
   "repository": "https://github.com/SoufianoDev/KotlinComposeKit",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "python3 scripts/sync_references.py --check",
     "references:sync": "python3 scripts/sync_references.py",
     "lint": "remark --frail skills/ README.md evals/README.md",
-    "test": "node --test .opencode/tests/*.test.js && python3 -m unittest scripts/test_release.py scripts/test_sync_references.py scripts/test_install_mimocode_skills.py scripts/test_install_opencode.py skills/run-github-project/scripts/test_rank_tickets.py skills/run-github-project/scripts/test_watch_project.py skills/gradle-run/scripts/test_gradle_run.py skills/release-kotlin-library/scripts/test_release.py && python3 -m unittest discover -s evals/tests -p 'test_*.py'",
+    "test": "node --test .opencode/tests/*.test.js && python3 -m unittest scripts/test_release.py scripts/test_sync_references.py scripts/test_install_mimocode_skills.py skills/run-github-project/scripts/test_rank_tickets.py skills/run-github-project/scripts/test_watch_project.py skills/gradle-run/scripts/test_gradle_run.py skills/release-kotlin-library/scripts/test_release.py && python3 -m unittest discover -s evals/tests -p 'test_*.py'",
     "evals:validate": "python3 evals/run.py validate",
-    "evals:plan": "python3 evals/run.py plan --model gpt-6-luna --reasoning high --judge-model gpt-6-sol --judge-reasoning high"
+    "evals:plan": "python3 evals/run.py plan --model gpt-6-luna --reasoning high --judge-model gpt-6-sol --judge-reasoning high",
+    "references:check": "python3 scripts/sync_references.py --check"
   },
   "dependencies": {
-    "js-yaml": "^4.1.1"
+    "js-yaml": "^4.1.1",
+    "@opencode/plugin": "2.1.2"
   },
   "devDependencies": {
     "remark": "^15.0.1",
@@ -39,5 +40,8 @@
       ],
       "remark-preset-lint-recommended"
     ]
+  },
+  "exports": {
+    ".": "./.opencode/plugins/kotlin-compose-kit.js"
   }
 }

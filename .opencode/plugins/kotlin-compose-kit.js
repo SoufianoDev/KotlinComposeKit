@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { load } from "js-yaml";
+import { Plugin, Skill } from "@opencode/plugin";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
@@ -107,7 +108,16 @@ const setup = async (ctx) => {
   if (skills.length === 0) return;
 
   await ctx.skill.transform((editor) => {
-    for (const skill of skills) editor.add(skill);
+    for (const skill of skills) {
+      editor.add({
+        id: Skill.ID.make(skill.id),
+        name: Skill.Name.make(skill.name),
+        description: skill.description,
+        autoinvoke: skill.autoinvoke,
+        path: Skill.Info.fields.path.make(skill.path),
+        content: skill.content,
+      });
+    }
   });
 
   await ctx.session.hook("context", (event) => {
@@ -116,4 +126,10 @@ const setup = async (ctx) => {
   });
 };
 
-export default { id: "kotlin-compose-kit", server: KotlinComposeKitPlugin, setup };
+export default {
+  ...Plugin.define({
+    id: "kotlin-compose-kit",
+    setup,
+  }),
+  server: KotlinComposeKitPlugin,
+};

@@ -33,28 +33,23 @@ codex plugin marketplace add SoufianoDev/KotlinComposeKit --ref main
 codex plugin add kotlin-compose-kit@kotlin-compose-kit
 ```
 
-Install globally for OpenCode with one command (run it from any directory).
-
-**Windows PowerShell:**
-
-```powershell
-irm https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.ps1 | iex
-```
-
-**macOS and Linux:**
+Install KotlinComposeKit globally for OpenCode V2 (2.1.2 or newer) through OpenCode's
+native plugin manager:
 
 ```sh
-(
-  tmp="$(mktemp)" &&
-  trap 'rm -f "$tmp"' EXIT &&
-  curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
-  sh "$tmp"
-)
+opencode plugin add github:SoufianoDev/KotlinComposeKit
 ```
 
-Both installers detect OpenCode V1 or V2 and use its native global plugin command.
-They do not ask you to edit a JSON file. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md)
-for supported versions, verification, and troubleshooting.
+The shared plugin entrypoint also retains OpenCode V1 1.18.29+ compatibility.
+Use the V1-specific installation command in [`.opencode/INSTALL.md`](.opencode/INSTALL.md);
+the V2 `plugin add` command is for V2 only.
+
+OpenCode manages the global V2 plugin configuration. Changes in watched
+configuration directories reload automatically; restart OpenCode only if an
+already-running instance does not pick up the plugin. See
+[`.opencode/INSTALL.md`](.opencode/INSTALL.md) for verification, updating,
+removal, and troubleshooting.
+
 
 ### MiMo Code
 
@@ -199,7 +194,7 @@ resource grants and final integrated validation still apply.
 
 Edit `references/subagent-selection.md`, then run
 `npm run references:sync` and include the updated bundled copies in the change.
-Run `npm run build` to check that all copies are regular files matching their
+Run `npm run references:check` to check that all copies are regular files matching their
 sources; it fails on drift without rewriting files.
 
 ### Migration from the previous guidance layout

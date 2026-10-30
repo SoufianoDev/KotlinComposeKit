@@ -10,6 +10,19 @@ import definition, { KotlinComposeKitPlugin } from "../plugins/kotlin-compose-ki
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const marker = "KOTLIN_COMPOSE_KIT_OPENCODE_GUIDANCE";
 
+test("the package manifest exposes the V2 entrypoint and avoids Git-install lifecycle scripts", async () => {
+  const manifest = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
+
+  assert.equal(manifest.exports["."], "./.opencode/plugins/kotlin-compose-kit.js");
+  assert.equal(manifest.dependencies["@opencode/plugin"], "2.1.2");
+
+  for (const key of ["build", "prepare", "preinstall", "install", "postinstall", "prepack", "workspaces"]) {
+    assert.equal(Object.hasOwn(manifest, key), false, `package.json must not define reserved Git-install key: ${key}`);
+    assert.equal(Object.hasOwn(manifest.scripts, key), false, `package.json scripts must not define reserved Git-install key: ${key}`);
+  }
+});
+
+
 async function register(plugin = definition) {
   let transform;
   let hook;
@@ -163,4 +176,129 @@ test("malformed metadata fails setup before any partial registration", async (t)
     example: '---\nname: example\ndescription: [not a string]\n---\nBody\n',
   });
   await assert.rejects(register(plugin), /Invalid skill metadata.*example/);
+});
+
+
+test("OpenCode installation guide preserves V1 compatibility alongside native V2 installation", async () => {
+  const guide = await fs.readFile(path.join(root, ".opencode/INSTALL.md"), "utf8");
+
+  assert.ok(guide.includes("OpenCode V2 2.1.2 or newer"));
+  assert.ok(guide.includes("OpenCode V1 1.18.29 or newer"));
+  assert.ok(guide.includes("opencode plugin add github:SoufianoDev/KotlinComposeKit"));
+  assert.ok(
+    guide.includes(
+      "opencode plugin 'git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global",
+    ),
+  );
+  assert.ok(guide.includes("opencode debug skill"));
+});
+
+test("OpenCode install workflow targets the PR head repository and commit", async () => {
+  const workflow = load(await fs.readFile(path.join(root, ".github/workflows/lint.yml"), "utf8"));
+  const checkoutStep = workflow.jobs["opencode-v2-plugin-install"].steps.find(
+    (step) => step.uses === "actions/checkout@v4",
+  );
+  assert.ok(checkoutStep, "The OpenCode integration job must check out its tested source.");
+  assert.equal(
+    checkoutStep.with.repository,
+    "${{ github.event.pull_request.head.repo.full_name || github.repository }}",
+  );
+  assert.equal(
+    checkoutStep.with.ref,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+
+  const installStep = workflow.jobs["opencode-v2-plugin-install"].steps.find(
+    (step) => step.name === "Install KotlinComposeKit from the tested branch",
+  );
+
+  assert.ok(installStep, "The OpenCode integration job must install the package explicitly.");
+  assert.equal(
+    installStep.env.KOTLIN_COMPOSE_KIT_REPOSITORY,
+    "${{ github.event.pull_request.head.repo.full_name || github.repository }}",
+  );
+  assert.equal(
+    installStep.env.KOTLIN_COMPOSE_KIT_REF,
+    "${{ github.event.pull_request.head.ref || github.ref_name }}",
+  );
+  assert.equal(
+    installStep.env.KOTLIN_COMPOSE_KIT_SHA,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+  assert.ok(
+    installStep.run.includes(
+      'repository_url="https://github.com/${KOTLIN_COMPOSE_KIT_REPOSITORY}.git"',
+    ),
+    "The package URL must include github.com and use the resolved head repository.",
+  );
+  assert.ok(
+    installStep.run.includes(
+      'git ls-remote "$repository_url" "refs/heads/${KOTLIN_COMPOSE_KIT_REF}"',
+    ),
+    "The workflow must verify that the remote PR branch still points to the expected head commit.",
+  );
+  assert.ok(
+    installStep.run.includes(
+      'opencode plugin add "git+${repository_url}#${KOTLIN_COMPOSE_KIT_SHA}"',
+    ),
+    "The install command must use the immutable, verified PR head commit.",
+  );
+
+  const verifyStep = workflow.jobs["opencode-v2-plugin-install"].steps.find(
+    (step) => step.name === "Verify installed package and discovered skills",
+  );
+  assert.ok(verifyStep, "The OpenCode integration job must verify its installed package.");
+  assert.equal(
+    verifyStep.env.KOTLIN_COMPOSE_KIT_REPOSITORY,
+    "${{ github.event.pull_request.head.repo.full_name || github.repository }}",
+  );
+  assert.equal(
+    verifyStep.env.KOTLIN_COMPOSE_KIT_SHA,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+
+  const verifierSource = await fs.readFile(path.join(root, "scripts/assert_opencode_install.mjs"), "utf8");
+  assert.ok(verifierSource.includes("process.env.KOTLIN_COMPOSE_KIT_REPOSITORY"));
+  assert.ok(verifierSource.includes("process.env.KOTLIN_COMPOSE_KIT_SHA"));
+  assert.ok(!verifierSource.includes("/SoufianoDev\\/KotlinComposeKit/i"));
+});
+
+test("OpenCode V1 CI installs the tested commit and verifies server-plugin skill discovery", async () => {
+  const workflow = load(await fs.readFile(path.join(root, ".github/workflows/lint.yml"), "utf8"));
+  const job = workflow.jobs["opencode-v1-plugin-install"];
+  assert.ok(job, "The OpenCode V1 integration job must exist.");
+  assert.deepEqual(job.strategy.matrix["opencode-version"], ["1.18.29", "1.19.5"]);
+
+  const checkoutStep = job.steps.find((step) => step.uses === "actions/checkout@v4");
+  assert.ok(checkoutStep, "The V1 job must check out the tested source.");
+  assert.equal(
+    checkoutStep.with.repository,
+    "${{ github.event.pull_request.head.repo.full_name || github.repository }}",
+  );
+  assert.equal(
+    checkoutStep.with.ref,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+
+  const cliInstall = job.steps.find((step) => step.name === "Install OpenCode V1 CLI");
+  assert.ok(cliInstall.run.includes('opencode-ai@${{ matrix.opencode-version }}'));
+
+  const installStep = job.steps.find((step) => step.name === "Install KotlinComposeKit from the tested commit");
+  assert.ok(installStep, "The V1 job must install the tested package.");
+  assert.equal(
+    installStep.env.KOTLIN_COMPOSE_KIT_SHA,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+  assert.ok(
+    installStep.run.includes('opencode plugin "git+${repository_url}#${KOTLIN_COMPOSE_KIT_SHA}" --global'),
+    "The V1 test must use OpenCode's legacy global plugin installer with an immutable Git commit.",
+  );
+
+  const verifyStep = job.steps.find((step) => step.name === "Verify V1 plugin loading and skill discovery");
+  assert.ok(verifyStep, "The V1 job must verify the actual loaded plugin.");
+  assert.equal(verifyStep.run, "node scripts/assert_opencode_v1_install.mjs");
+  assert.equal(
+    verifyStep.env.OPENCODE_EXPECTED_VERSION,
+    "${{ matrix.opencode-version }}",
+  );
 });

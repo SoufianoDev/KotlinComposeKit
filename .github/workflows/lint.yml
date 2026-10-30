@@ -2,12 +2,15 @@ name: Lint Skills
 
 on:
   push:
-    branches: [main]
+    branches: [main, test/opencode-v2-cli-install]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   lint:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,11 +18,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
 
-      - run: npm ci
+      - name: Install project dependencies from the committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - run: npm run build
+      - run: npm run references:check
 
       - run: npm run lint
 
@@ -27,14 +30,140 @@ jobs:
 
       - run: npm test
 
-  windows-opencode-installer:
-    runs-on: windows-latest
+
+  opencode-v2-plugin-install:
+    name: OpenCode ${{ matrix.opencode-version }} with OpenJDK 17
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        opencode-version: ["2.1.2", "2.1.4", "2.2.4"]
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Test the PowerShell installer
-        run: python -m unittest scripts.test_install_opencode.OpenCodePowerShellInstallerTests
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Verify OpenJDK compiler and runtime
+        run: |
+          java -version
+          javac -version
+          mkdir -p "$RUNNER_TEMP/openjdk-smoke"
+          cat > "$RUNNER_TEMP/openjdk-smoke/OpenJdkSmoke.java" <<'JAVA'
+          public final class OpenJdkSmoke {
+              public static void main(String[] args) {
+                  System.out.println("OpenJDK integration environment is ready.");
+              }
+          }
+          JAVA
+          javac -d "$RUNNER_TEMP/openjdk-smoke" "$RUNNER_TEMP/openjdk-smoke/OpenJdkSmoke.java"
+          java -cp "$RUNNER_TEMP/openjdk-smoke" OpenJdkSmoke
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install OpenCode CLI
+        run: npm install --global "@opencode/cli@${{ matrix.opencode-version }}"
+
+      - name: Confirm OpenCode version
+        run: |
+          opencode --version
+          opencode --version | grep -F "${{ matrix.opencode-version }}"
+
+      - name: Install KotlinComposeKit from the tested branch
+        env:
+          HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}
+          XDG_CONFIG_HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}/config
+          XDG_DATA_HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}/data
+          XDG_CACHE_HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}/cache
+          KOTLIN_COMPOSE_KIT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          KOTLIN_COMPOSE_KIT_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          KOTLIN_COMPOSE_KIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+          repository_url="https://github.com/${KOTLIN_COMPOSE_KIT_REPOSITORY}.git"
+          remote_sha="$(git ls-remote "$repository_url" "refs/heads/${KOTLIN_COMPOSE_KIT_REF}" | cut -f1)"
+          if [[ "$remote_sha" != "$KOTLIN_COMPOSE_KIT_SHA" ]]; then
+            echo "::error::The tested branch does not point to the expected PR commit."
+            echo "Expected: $KOTLIN_COMPOSE_KIT_SHA"
+            echo "Remote:   ${remote_sha:-<missing branch>}"
+            exit 1
+          fi
+          opencode plugin add "git+${repository_url}#${KOTLIN_COMPOSE_KIT_SHA}"
+
+      - name: Verify installed package and discovered skills
+        env:
+          HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}
+          XDG_CONFIG_HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}/config
+          XDG_DATA_HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}/data
+          XDG_CACHE_HOME: ${{ runner.temp }}/opencode-home-${{ matrix.opencode-version }}/cache
+          KOTLIN_COMPOSE_KIT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          KOTLIN_COMPOSE_KIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/assert_opencode_install.mjs
+
+  opencode-v1-plugin-install:
+    name: OpenCode V1 ${{ matrix.opencode-version }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        opencode-version: ["1.18.29", "1.19.5"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install OpenCode V1 CLI
+        run: npm install --global "opencode-ai@${{ matrix.opencode-version }}"
+
+      - name: Confirm OpenCode V1 version
+        run: |
+          opencode --version
+          opencode --version | grep -F "${{ matrix.opencode-version }}"
+
+      - name: Install KotlinComposeKit from the tested commit
+        env:
+          HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}
+          XDG_CONFIG_HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}/config
+          XDG_DATA_HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}/data
+          XDG_CACHE_HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}/cache
+          KOTLIN_COMPOSE_KIT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          KOTLIN_COMPOSE_KIT_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          KOTLIN_COMPOSE_KIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
+          repository_url="https://github.com/${KOTLIN_COMPOSE_KIT_REPOSITORY}.git"
+          remote_sha="$(git ls-remote "$repository_url" "refs/heads/${KOTLIN_COMPOSE_KIT_REF}" | cut -f1)"
+          if [[ "$remote_sha" != "$KOTLIN_COMPOSE_KIT_SHA" ]]; then
+            echo "::error::The tested branch does not point to the expected PR commit."
+            echo "Expected: $KOTLIN_COMPOSE_KIT_SHA"
+            echo "Remote:   ${remote_sha:-<missing branch>}"
+            exit 1
+          fi
+          opencode plugin "git+${repository_url}#${KOTLIN_COMPOSE_KIT_SHA}" --global
+
+      - name: Verify V1 plugin loading and skill discovery
+        env:
+          HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}
+          XDG_CONFIG_HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}/config
+          XDG_DATA_HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}/data
+          XDG_CACHE_HOME: ${{ runner.temp }}/opencode-v1-home-${{ matrix.opencode-version }}/cache
+          KOTLIN_COMPOSE_KIT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          KOTLIN_COMPOSE_KIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OPENCODE_EXPECTED_VERSION: ${{ matrix.opencode-version }}
+        run: node scripts/assert_opencode_v1_install.mjs

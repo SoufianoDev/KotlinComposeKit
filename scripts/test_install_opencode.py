@@ -4,10 +4,32 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts" / "install-opencode.sh"
+
+
+def path_without_opencode(directory):
+    tools = directory / "system-tools"
+    tools.mkdir()
+    if os.name != "nt":
+        for name in ("sh", "sed", "head", "awk"):
+            executable = shutil.which(name)
+            if executable:
+                (tools / name).symlink_to(executable)
+    return str(tools)
+
+
+def add_host_opencode(directory):
+    executable = directory / ("opencode.cmd" if os.name == "nt" else "opencode")
+    executable.write_text(
+        '@echo 2.0.22\r\n' if os.name == "nt" else '#!/bin/sh\nprintf "2.0.22\\n"\n',
+        encoding="utf-8",
+    )
+    if os.name != "nt":
+        executable.chmod(0o755)
 
 
 class OpenCodeInstallerTests(unittest.TestCase):
@@ -25,11 +47,14 @@ class OpenCodeInstallerTests(unittest.TestCase):
                 )
                 executable.chmod(0o755)
             env = os.environ.copy()
-            env["PATH"] = str(directory) + os.pathsep + env.get("PATH", "")
+            env["PATH"] = (
+                str(directory) + os.pathsep + env.get("PATH", "")
+                if present else path_without_opencode(directory)
+            )
             env["MOCK_VERSION"] = version
             env["MOCK_LOG"] = str(log)
             result = subprocess.run(
-                ["sh", str(INSTALLER)],
+                [shutil.which("sh") or "sh", str(INSTALLER)],
                 text=True,
                 capture_output=True,
                 env=env,
@@ -66,7 +91,10 @@ class OpenCodeInstallerTests(unittest.TestCase):
         self.assertIn("Unsupported OpenCode version", result.stderr)
 
     def test_requires_opencode(self):
-        result, _ = self.run_installer("2.0.22", present=False)
+        with tempfile.TemporaryDirectory() as temporary:
+            add_host_opencode(pathlib.Path(temporary))
+            with mock.patch.dict(os.environ, {"PATH": temporary + os.pathsep + os.environ.get("PATH", "")}):
+                result, _ = self.run_installer("2.0.22", present=False)
         self.assertEqual(result.returncode, 127)
         self.assertIn("OpenCode was not found", result.stdout)
 
@@ -75,7 +103,7 @@ class OpenCodePowerShellInstallerTests(unittest.TestCase):
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     installer = ROOT / "scripts" / "install-opencode.ps1"
 
-    def run_installer(self, version, *, present=True):
+    def run_installer(self, version, *, present=True, expression=False, command_error=False):
         with tempfile.TemporaryDirectory() as temporary:
             directory = pathlib.Path(temporary)
             log = directory / "calls.txt"
@@ -100,19 +128,31 @@ class OpenCodePowerShellInstallerTests(unittest.TestCase):
                 executable.chmod(0o755)
 
             env = os.environ.copy()
-            env["PATH"] = str(directory) + os.pathsep + env.get("PATH", "")
+            env["PATH"] = (
+                str(directory) + os.pathsep + env.get("PATH", "")
+                if present else path_without_opencode(directory)
+            )
             env["MOCK_VERSION"] = version
             env["MOCK_LOG"] = str(log)
+            command = [self.powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"]
+            if expression:
+                env["INSTALLER_PATH"] = str(self.installer)
+                probe = 'function Get-Command { Write-Error "probe failure" }' if command_error else ""
+                command.extend(["-Command", f"""
+                    $ErrorActionPreference = 'Continue'
+                    {probe}
+                    try {{
+                        Get-Content -Raw -LiteralPath $env:INSTALLER_PATH | Invoke-Expression
+                        Write-Output 'INSTALLER_SUCCEEDED'
+                    }} catch {{
+                        Write-Output ('INSTALLER_ERROR: ' + $_.Exception.Message)
+                    }}
+                    Write-Output ('PREFERENCE: ' + $ErrorActionPreference)
+                """])
+            else:
+                command.extend(["-File", str(self.installer)])
             result = subprocess.run(
-                [
-                    self.powershell,
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-File",
-                    str(self.installer),
-                ],
+                command,
                 text=True,
                 capture_output=True,
                 env=env,
@@ -152,9 +192,29 @@ class OpenCodePowerShellInstallerTests(unittest.TestCase):
 
     @unittest.skipUnless(powershell, "PowerShell is not installed")
     def test_requires_opencode(self):
-        result, _ = self.run_installer("2.0.22", present=False)
+        with tempfile.TemporaryDirectory() as temporary:
+            add_host_opencode(pathlib.Path(temporary))
+            with mock.patch.dict(os.environ, {"PATH": temporary + os.pathsep + os.environ.get("PATH", "")}):
+                result, _ = self.run_installer("2.0.22", present=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("OpenCode was not found", result.stderr)
+
+    @unittest.skipUnless(powershell, "PowerShell is not installed")
+    def test_expression_preserves_caller_preference_after_success_and_failure(self):
+        for present in (True, False):
+            with self.subTest(present=present):
+                result, _ = self.run_installer("2.0.22", present=present, expression=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("PREFERENCE: Continue", result.stdout)
+                self.assertIn("INSTALLER_SUCCEEDED" if present else "OpenCode was not found", result.stdout)
+
+    @unittest.skipUnless(powershell, "PowerShell is not installed")
+    def test_expression_stops_on_nonterminating_errors(self):
+        result, _ = self.run_installer("2.0.22", expression=True, command_error=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("INSTALLER_ERROR: probe failure", result.stdout)
+        self.assertIn("PREFERENCE: Continue", result.stdout)
+        self.assertNotIn("INSTALLER_SUCCEEDED", result.stdout)
 
 
 if __name__ == "__main__":

@@ -1,41 +1,43 @@
-![Abstract illustration of a modular Kotlin and Jetpack Compose toolkit](docs/assets/skills-header.webp)
+![KotlinComposeKit — Kotlin and Jetpack Compose engineering toolkit](docs/assets/kotlin-compose-kit-header.webp)
 
-# Skills
+# KotlinComposeKit
 
-A set of skills for Kotlin, Jetpack Compose, Android development, and grounded
-writing.
+KotlinComposeKit is a focused engineering toolkit for Kotlin, Jetpack Compose,
+Android, JVM, and coding-agent workflows. It provides practical guidance for
+implementation, architecture, performance, testing, and repository delivery.
 
 The repository is also a portable [Agent Plugins](https://agent-plugins.org/)
 v1.0.0 package. Conforming clients discover the root [`plugin.json`](plugin.json)
-and the immediate skill directories under [`skills/`](skills/).
+and the immediate Agent Skills modules under [`skills/`](skills/). The directory
+name follows the packaging format; it is not the project's brand name.
 
 ## Install
 
 With the [skills CLI](https://skills.sh):
 
 ```
-npx skills add chrisbanes/skills
+npx skills add SoufianoDev/KotlinComposeKit
 ```
 
 Or install as a Claude Code plugin:
 
 ```
-/plugin marketplace add chrisbanes/skills
-/plugin install chrisbanes-skills@chrisbanes-skills
+/plugin marketplace add SoufianoDev/KotlinComposeKit
+/plugin install kotlin-compose-kit@kotlin-compose-kit
 ```
 
 Or install as a Codex plugin:
 
 ```
-codex plugin marketplace add chrisbanes/skills --ref main
-codex plugin add chrisbanes-skills@chrisbanes-skills
+codex plugin marketplace add SoufianoDev/KotlinComposeKit --ref main
+codex plugin add kotlin-compose-kit@kotlin-compose-kit
 ```
 
 Or install as an OpenCode V2 plugin (2.0.22 or newer):
 
 ```json
 {
-  "plugins": ["chrisbanes-skills@git+https://github.com/chrisbanes/skills.git"]
+  "plugins": ["kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git"]
 }
 ```
 
@@ -79,8 +81,8 @@ for supported discovery paths and troubleshooting.
 
 ### External skill providers
 
-Most skills in this repository are self-contained. The workflows below compose
-with skills from other repositories; installing `chrisbanes/skills` does not
+Most guidance modules in this repository are self-contained. The workflows below compose
+with skills from other repositories; installing `SoufianoDev/KotlinComposeKit` does not
 install them, and the workflows never install them implicitly.
 
 | Consumer | Requirement | Provider | Source and install |
@@ -112,7 +114,7 @@ Review mode in `implement-with-subagents`, and review or setup mode in
 [`run-github-project` provider matrix](skills/run-github-project/references/workflow-providers.md)
 for its lane-specific fallback and blocking behavior.
 
-## Skills
+## Guidance modules
 
 ### Start here
 
@@ -123,7 +125,7 @@ for its lane-specific fallback and blocking behavior.
 
 ### Routing
 
-- [`using-chrisbanes-skills`](skills/using-chrisbanes-skills/SKILL.md) — route Kotlin and Jetpack Compose work to focused skills, adding a second only for an independent decision in the same change.
+- [`using-kotlin-compose-kit`](skills/using-kotlin-compose-kit/SKILL.md) — route Kotlin and Jetpack Compose work to focused skills, adding a second only for an independent decision in the same change.
 
 ### Benchmarking
 
@@ -157,7 +159,7 @@ for its lane-specific fallback and blocking behavior.
 
 ### Writing
 
-- [`grounded-writing`](skills/grounded-writing/SKILL.md) — draft or review public developer documentation and other user-owned text using Chris Banes’s writing as the sole style model, including internal report reviews, while preserving evidence, format, review-only authority, and material-edit restraint.
+- [`grounded-writing`](skills/grounded-writing/SKILL.md) — draft or review developer documentation and other user-owned text using the project's evidence-first editorial rules, including internal report reviews, while preserving evidence, format, review-only authority, and material-edit restraint.
 
 ### Workflows
 
@@ -188,17 +190,24 @@ Edit `references/subagent-selection.md`, then run
 Run `npm run build` to check that all copies are regular files matching their
 sources; it fails on drift without rewriting files.
 
-### Migration from pre-cluster skills
+### Migration from the previous guidance layout
 
 This is a breaking taxonomy change. Replace the removed entrypoints as follows:
 
 | Removed skills | Replacement |
 |---|---|
+| `using-chrisbanes-skills` | [`using-kotlin-compose-kit`](skills/using-kotlin-compose-kit/SKILL.md) |
 | `compose-state-authoring`, `compose-state-hoisting`, `compose-side-effects` | [`compose-state-and-effects`](skills/compose-state-and-effects/SKILL.md) |
 | `compose-recomposition-performance`, `compose-stability-diagnostics`, `compose-state-deferred-reads` | [`compose-performance`](skills/compose-performance/SKILL.md) |
 | `compose-modifier-and-layout-style`, `compose-slot-api-pattern` | [`compose-component-design`](skills/compose-component-design/SKILL.md) |
 | `kotlin-coroutines-structured-concurrency`, `kotlin-flow-state-event-modeling` | [`kotlin-concurrency-and-flow`](skills/kotlin-concurrency-and-flow/SKILL.md) |
 | `kotlin-functions`, `kotlin-types-value-class`, `kotlin-multiplatform-expect-actual` | [`kotlin-api-design`](skills/kotlin-api-design/SKILL.md) |
+
+See the [release notes](RELEASE_NOTES.md) for the router rename.
+
+## Project ownership and upstream attribution
+
+KotlinComposeKit is maintained by [SoufianoDev](https://github.com/SoufianoDev). It remains a fork of [Chris Banes's original repository](https://github.com/chrisbanes/skills); upstream attribution and the Apache-2.0 license are preserved for inherited work. The project metadata identifies the maintainer of this fork, not the author of every inherited contribution.
 
 ## Contributing
 
@@ -284,7 +293,7 @@ invalid or inconclusive results. Before any rerun, preview again, inspect its
 headroom. Results remain advisory, not release gates. See
 [`evals/README.md`](evals/README.md) for suite selection and command options.
 
-## Evaluating skills
+## Evaluating guidance modules
 
 The advisory evaluator tests concrete scenarios modelled on real-world coding
 work, with expected outcomes and no-change controls. It compares no-skill,

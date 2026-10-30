@@ -1,19 +1,20 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "chrisbanes-skills",
+  "name": "kotlin-compose-kit",
   "version": "2026.10.26",
-  "description": "Skills for Kotlin, Android, JVM, and Jetpack Compose development by Chris Banes.",
+  "description": "Kotlin, Android, JVM, and Jetpack Compose engineering guidance and workflows maintained by SoufianoDev.",
   "author": {
-    "name": "Chris Banes",
-    "url": "https://github.com/chrisbanes"
+    "name": "SoufianoDev",
+    "url": "https://github.com/SoufianoDev"
   },
-  "homepage": "https://github.com/chrisbanes/skills",
-  "repository": "https://github.com/chrisbanes/skills",
+  "homepage": "https://github.com/SoufianoDev/KotlinComposeKit",
+  "repository": "https://github.com/SoufianoDev/KotlinComposeKit",
   "license": "Apache-2.0",
   "keywords": [
     "kotlin",
     "android",
     "jetpack-compose",
-    "skills"
+    "coding-agents",
+    "developer-tools"
   ]
 }

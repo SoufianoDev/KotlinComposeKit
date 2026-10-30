@@ -13,8 +13,8 @@ VERSION_PATTERN = re.compile(
 EXISTING_VERSION_PATTERN = re.compile(
     r"^[0-9]{4}\.(0?[1-9]|1[0-2])\.(0?[1-9]|[12][0-9]|3[01])(?:\.(0?[1-9]|[1-9][0-9]))?$"
 )
-PLUGIN_NAME = "chrisbanes-skills"
-OPENCODE_MAIN = ".opencode/plugins/chrisbanes-skills.js"
+PLUGIN_NAME = "kotlin-compose-kit"
+OPENCODE_MAIN = ".opencode/plugins/kotlin-compose-kit.js"
 AGENT_PLUGINS_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 AGENT_PLUGINS_FIELDS = {
     "$schema",
@@ -104,11 +104,11 @@ def validate_manifests(root, version):
     )
     require(
         portable.get("name") == PLUGIN_NAME,
-        "Agent Plugins name must be chrisbanes-skills",
+        "Agent Plugins name must be kotlin-compose-kit",
     )
-    require(claude.get("name") == PLUGIN_NAME, "Claude plugin name must be chrisbanes-skills")
-    require(codex.get("name") == PLUGIN_NAME, "Codex plugin name must be chrisbanes-skills")
-    require(package.get("name") == PLUGIN_NAME, "OpenCode package name must be chrisbanes-skills")
+    require(claude.get("name") == PLUGIN_NAME, "Claude plugin name must be kotlin-compose-kit")
+    require(codex.get("name") == PLUGIN_NAME, "Codex plugin name must be kotlin-compose-kit")
+    require(package.get("name") == PLUGIN_NAME, "OpenCode package name must be kotlin-compose-kit")
     require(
         portable.get("version") == version,
         f"Agent Plugins version mismatch: {portable.get('version')}",
@@ -118,11 +118,11 @@ def validate_manifests(root, version):
     require(package.get("version") == version, f"OpenCode package version mismatch: {package.get('version')}")
     require(
         claude_marketplace.get("name") == PLUGIN_NAME,
-        "Claude marketplace name must be chrisbanes-skills",
+        "Claude marketplace name must be kotlin-compose-kit",
     )
     require(
         codex_marketplace.get("name") == PLUGIN_NAME,
-        "Codex marketplace name must be chrisbanes-skills",
+        "Codex marketplace name must be kotlin-compose-kit",
     )
     require(codex.get("skills") == "./skills/", "Codex plugin skills path must be ./skills/")
     require(package.get("main") == OPENCODE_MAIN, f"OpenCode package main must be {OPENCODE_MAIN}")
@@ -154,7 +154,7 @@ def require(condition, message):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Release helpers for chrisbanes-skills.")
+    parser = argparse.ArgumentParser(description="Release helpers for kotlin-compose-kit.")
     parser.add_argument(
         "--root",
         default=".",

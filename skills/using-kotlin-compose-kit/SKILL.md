@@ -1,9 +1,9 @@
 ---
-name: using-chrisbanes-skills
+name: using-kotlin-compose-kit
 description: Use when routing Kotlin or Jetpack Compose work, or physical Android benchmark evidence that needs a configuration decision, especially when several Kotlin or Compose concerns overlap.
 ---
 
-# Using chrisbanes skills
+# Using KotlinComposeKit
 
 ## Core principle
 

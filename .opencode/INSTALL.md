@@ -1,4 +1,4 @@
-# Installing Chris Banes Skills for OpenCode
+# Installing KotlinComposeKit for OpenCode
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ Use the `plugins` array:
 
 ```json
 {
-  "plugins": ["chrisbanes-skills@git+https://github.com/chrisbanes/skills.git"]
+  "plugins": ["kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git"]
 }
 ```
 
@@ -24,7 +24,7 @@ Use the `plugin` array:
 
 ```json
 {
-  "plugin": ["chrisbanes-skills@git+https://github.com/chrisbanes/skills.git"]
+  "plugin": ["kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git"]
 }
 ```
 
@@ -34,24 +34,24 @@ V1 retains its existing user-message guidance. V2 adds the guidance to each outg
 
 ## Verify
 
-On V2, use `opencode plugin list` to check that `chrisbanes-skills` is loaded and `opencode api skill.list` to inspect discovered skills. On V1, use `opencode debug skill`.
+On V2, use `opencode plugin list` to check that `kotlin-compose-kit` is loaded and `opencode api skill.list` to inspect discovered skills. On V1, use `opencode debug skill`.
 
 You can also use OpenCode's native `skill` tool, or ask a routing question such as:
 
 ```text
-Which Chris Banes skill should I use to review this Compose state model?
+Which KotlinComposeKit module should I use to review this Compose state model?
 ```
 
-For broad Kotlin, Android, JVM, or Jetpack Compose tasks, the agent should start with `using-chrisbanes-skills` and then load the focused skill for the task.
+For broad Kotlin, Android, JVM, or Jetpack Compose tasks, the agent should start with `using-kotlin-compose-kit` and then load the focused skill for the task.
 
-OpenCode uses its own plugin install. If you also use Claude Code, Codex, or another harness, install this skills repo separately for each one.
+OpenCode uses its own plugin install. If you also use Claude Code, Codex, or another harness, install KotlinComposeKit separately for each one.
 
 ## Updating
 
 On V2, run `opencode plugin update` with the configured package target to update this plugin:
 
 ```sh
-opencode plugin update 'chrisbanes-skills@git+https://github.com/chrisbanes/skills.git'
+opencode plugin update 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git'
 ```
 
 On V1, OpenCode installs git-backed plugin specs through its plugin manager. Some OpenCode and Bun versions pin resolved git dependencies in a lockfile or cache, so a restart may not pick up the newest commit. If updates do not appear, reinstall the plugin.
@@ -76,7 +76,7 @@ On V2, a local checkout can also supply skills directly:
 
 ```json
 {
-  "skills": ["/absolute/path/to/skills/skills"]
+  "skills": ["/absolute/path/to/KotlinComposeKit/skills"]
 }
 ```
 
@@ -84,5 +84,5 @@ This uses native skill discovery without the plugin's routing guidance.
 
 ## Getting Help
 
-- Report issues: https://github.com/chrisbanes/skills/issues
-- Repository: https://github.com/chrisbanes/skills
+- Report issues: https://github.com/SoufianoDev/KotlinComposeKit/issues
+- Repository: https://github.com/SoufianoDev/KotlinComposeKit

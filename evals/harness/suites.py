@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-ROUTER_SKILL = "using-chrisbanes-skills"
+ROUTER_SKILL = "using-kotlin-compose-kit"
 PUBLIC_SKILLS = (
     "compose-animations",
     "compose-component-design",

@@ -182,21 +182,21 @@ class ReleaseScriptTest(unittest.TestCase):
             expected = {
                 root / "plugin.json": (
                     '{\n  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",\n'
-                    '  "name": "chrisbanes-skills",\n  "version": "2028.2.29.01"\n}\n'
+                    '  "name": "kotlin-compose-kit",\n  "version": "2028.2.29.01"\n}\n'
                 ).encode(),
                 root / ".claude-plugin/plugin.json": (
-                    '{\n  "name": "chrisbanes-skills",\n  "version": "2028.2.29.01"\n}\n'
+                    '{\n  "name": "kotlin-compose-kit",\n  "version": "2028.2.29.01"\n}\n'
                 ).encode(),
                 root / ".codex-plugin/plugin.json": (
-                    '{\n  "name": "chrisbanes-skills",\n  "version": "2028.2.29.01",\n'
+                    '{\n  "name": "kotlin-compose-kit",\n  "version": "2028.2.29.01",\n'
                     '  "skills": "./skills/"\n}\n'
                 ).encode(),
                 root / "package.json": (
-                    '{\n  "name": "chrisbanes-skills",\n  "version": "2028.2.29.01",\n'
-                    '  "main": ".opencode/plugins/chrisbanes-skills.js"\n}\n'
+                    '{\n  "name": "kotlin-compose-kit",\n  "version": "2028.2.29.01",\n'
+                    '  "main": ".opencode/plugins/kotlin-compose-kit.js"\n}\n'
                 ).encode(),
-                root / ".claude-plugin/marketplace.json": b'{\n  "name": "chrisbanes-skills"\n}\n',
-                root / ".agents/plugins/marketplace.json": b'{\n  "name": "chrisbanes-skills"\n}\n',
+                root / ".claude-plugin/marketplace.json": b'{\n  "name": "kotlin-compose-kit"\n}\n',
+                root / ".agents/plugins/marketplace.json": b'{\n  "name": "kotlin-compose-kit"\n}\n',
             }
             self.release.update_manifests(root, "2028.2.29.1")
             self.assertEqual({path: path.read_bytes() for path in root.rglob("*.json")}, expected)
@@ -300,33 +300,33 @@ class ReleaseScriptTest(unittest.TestCase):
                 root / "plugin.json",
                 {
                     "$schema": self.release.AGENT_PLUGINS_SCHEMA,
-                    "name": "chrisbanes-skills",
+                    "name": "kotlin-compose-kit",
                     "version": "2026.6.16",
                 },
             )
             self.write_json(
                 root / ".claude-plugin" / "plugin.json",
-                {"name": "chrisbanes-skills", "version": "2026.6.16"},
+                {"name": "kotlin-compose-kit", "version": "2026.6.16"},
             )
             self.write_json(
                 root / ".codex-plugin" / "plugin.json",
-                {"name": "chrisbanes-skills", "version": "2026.6.16", "skills": "./skills/"},
+                {"name": "kotlin-compose-kit", "version": "2026.6.16", "skills": "./skills/"},
             )
             self.write_json(
                 root / "package.json",
                 {
-                    "name": "chrisbanes-skills",
+                    "name": "kotlin-compose-kit",
                     "version": "2026.6.16",
-                    "main": ".opencode/plugins/chrisbanes-skills.js",
+                    "main": ".opencode/plugins/kotlin-compose-kit.js",
                 },
             )
             self.write_json(
                 root / ".claude-plugin" / "marketplace.json",
-                {"name": "chrisbanes-skills"},
+                {"name": "kotlin-compose-kit"},
             )
             self.write_json(
                 root / ".agents" / "plugins" / "marketplace.json",
-                {"name": "chrisbanes-skills"},
+                {"name": "kotlin-compose-kit"},
             )
 
             self.release.update_manifests(root, "2026.6.17.1")
@@ -352,6 +352,23 @@ class ReleaseScriptTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "OpenCode package name"):
                 self.release.validate_manifests(root, "2026.6.17")
+
+    def test_validate_manifests_rejects_obsolete_identity(self):
+        for manifest in (
+            "plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json",
+            "package.json", ".claude-plugin/marketplace.json",
+            ".agents/plugins/marketplace.json",
+        ):
+            with self.subTest(manifest=manifest), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self.write_valid_manifests(root)
+                path = root / manifest
+                data = self.read_json(path)
+                data["name"] = "chrisbanes-skills"
+                self.write_json(path, data)
+
+                with self.assertRaisesRegex(ValueError, "name must be kotlin-compose-kit"):
+                    self.release.validate_manifests(root, "2026.6.17")
 
     def test_validate_manifests_rejects_agent_plugins_schema_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -390,16 +407,17 @@ class ReleaseScriptTest(unittest.TestCase):
                 self.release.validate_manifests(root, "2026.6.17")
 
     def test_validate_manifests_rejects_opencode_package_main_mismatch(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = pathlib.Path(tmp)
-            self.write_valid_manifests(root)
-            package_path = root / "package.json"
-            package = self.read_json(package_path)
-            package["main"] = "index.js"
-            self.write_json(package_path, package)
+        for main in ("index.js", ".opencode/plugins/chrisbanes-skills.js"):
+            with self.subTest(main=main), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self.write_valid_manifests(root)
+                package_path = root / "package.json"
+                package = self.read_json(package_path)
+                package["main"] = main
+                self.write_json(package_path, package)
 
-            with self.assertRaisesRegex(ValueError, "OpenCode package main"):
-                self.release.validate_manifests(root, "2026.6.17")
+                with self.assertRaisesRegex(ValueError, "OpenCode package main"):
+                    self.release.validate_manifests(root, "2026.6.17")
 
     def write_valid_manifests(self, root, version="2026.6.17"):
         (root / ".claude-plugin").mkdir()
@@ -410,33 +428,33 @@ class ReleaseScriptTest(unittest.TestCase):
             root / "plugin.json",
             {
                 "$schema": self.release.AGENT_PLUGINS_SCHEMA,
-                "name": "chrisbanes-skills",
+                "name": "kotlin-compose-kit",
                 "version": version,
             },
         )
         self.write_json(
             root / ".claude-plugin" / "plugin.json",
-            {"name": "chrisbanes-skills", "version": version},
+            {"name": "kotlin-compose-kit", "version": version},
         )
         self.write_json(
             root / ".codex-plugin" / "plugin.json",
-            {"name": "chrisbanes-skills", "version": version, "skills": "./skills/"},
+            {"name": "kotlin-compose-kit", "version": version, "skills": "./skills/"},
         )
         self.write_json(
             root / "package.json",
             {
-                "name": "chrisbanes-skills",
+                "name": "kotlin-compose-kit",
                 "version": version,
-                "main": ".opencode/plugins/chrisbanes-skills.js",
+                "main": ".opencode/plugins/kotlin-compose-kit.js",
             },
         )
         self.write_json(
             root / ".claude-plugin" / "marketplace.json",
-            {"name": "chrisbanes-skills"},
+            {"name": "kotlin-compose-kit"},
         )
         self.write_json(
             root / ".agents" / "plugins" / "marketplace.json",
-            {"name": "chrisbanes-skills"},
+            {"name": "kotlin-compose-kit"},
         )
 
     @staticmethod

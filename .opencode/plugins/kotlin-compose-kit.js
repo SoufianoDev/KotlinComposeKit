@@ -5,16 +5,16 @@ import { load } from "js-yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillsDir = path.resolve(__dirname, "../../skills");
-const guidanceMarker = "CHRISBANES_SKILLS_OPENCODE_GUIDANCE";
+const guidanceMarker = "KOTLIN_COMPOSE_KIT_OPENCODE_GUIDANCE";
 const guidance = `<${guidanceMarker}>
-Chris Banes skills are available in OpenCode. Use OpenCode's native skill tool to load focused guidance. For broad Kotlin, Android, JVM, or Jetpack Compose tasks, start by loading the using-chrisbanes-skills skill.
+KotlinComposeKit guidance is available in OpenCode. Use OpenCode's native skill tool to load focused modules. For broad Kotlin, Android, JVM, or Jetpack Compose tasks, start by loading the using-kotlin-compose-kit module.
 </${guidanceMarker}>`;
 
 const logWarning = async (client, message) => {
   try {
     await client?.app?.log?.({
       body: {
-        service: "chrisbanes-skills",
+        service: "kotlin-compose-kit",
         level: "warn",
         message,
       },
@@ -48,11 +48,11 @@ const injectGuidance = (messages) => {
   firstUser.parts.unshift({ ...referencePart, type: "text", text: guidance });
 };
 
-export const ChrisBanesSkillsPlugin = async ({ client }) => {
+export const KotlinComposeKitPlugin = async ({ client }) => {
   return {
     config: async (config) => {
       if (!fs.existsSync(skillsDir)) {
-        await logWarning(client, `Skills directory not found: ${skillsDir}`);
+        await logWarning(client, `Guidance module directory not found: ${skillsDir}`);
         return;
       }
 
@@ -99,7 +99,7 @@ const readSkills = () => {
 
 const setup = async (ctx) => {
   if (!fs.existsSync(skillsDir)) {
-    console.warn(`[chrisbanes-skills] Skills directory not found: ${skillsDir}`);
+    console.warn(`[kotlin-compose-kit] Guidance module directory not found: ${skillsDir}`);
     return;
   }
 
@@ -116,4 +116,4 @@ const setup = async (ctx) => {
   });
 };
 
-export default { id: "chrisbanes-skills", server: ChrisBanesSkillsPlugin, setup };
+export default { id: "kotlin-compose-kit", server: KotlinComposeKitPlugin, setup };

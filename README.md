@@ -44,10 +44,12 @@ irm https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/
 **macOS and Linux:**
 
 ```sh
-tmp="$(mktemp)" &&
-trap 'rm -f "$tmp"' EXIT &&
-curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
-sh "$tmp"
+(
+  tmp="$(mktemp)" &&
+  trap 'rm -f "$tmp"' EXIT &&
+  curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
+  sh "$tmp"
+)
 ```
 
 Both installers detect OpenCode V1 or V2 and use its native global plugin command.

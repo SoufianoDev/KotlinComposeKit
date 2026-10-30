@@ -37,7 +37,7 @@
             }
 
             Write-Host "Installing KotlinComposeKit globally for OpenCode V2 ($version)..."
-            & opencode plugin add $v2Package --global
+            & opencode plugin add $v2Package
         }
         default {
             throw "Unsupported OpenCode version: $version. Supported versions are V1.18.29+ and V2.0.22+."

@@ -33,16 +33,15 @@ codex plugin marketplace add SoufianoDev/KotlinComposeKit --ref main
 codex plugin add kotlin-compose-kit@kotlin-compose-kit
 ```
 
-Or install as an OpenCode V2 plugin (2.0.22 or newer):
+Install globally for OpenCode with one command (run it from any directory):
 
-```json
-{
-  "plugins": ["kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git"]
-}
+```sh
+curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh | sh
 ```
 
-OpenCode V1 1.18.29 or newer uses `plugin` instead of `plugins`.
-See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for details.
+The installer detects OpenCode V1 or V2 and uses its native global plugin command.
+It does not ask you to edit a JSON file. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md)
+for supported versions, verification, and troubleshooting.
 
 ### MiMo Code
 

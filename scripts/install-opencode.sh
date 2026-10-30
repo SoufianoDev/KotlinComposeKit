@@ -23,8 +23,6 @@ fi
 major="${version%%.*}"
 case "$major" in
   2)
-    minimum="2.0.22"
-    set -- $version
     if ! awk -v v="$version" 'BEGIN {
       split(v,a,"."); split("2.0.22",b,".");
       for(i=1;i<=3;i++){if(a[i]+0>b[i]+0)exit 0;if(a[i]+0<b[i]+0)exit 1}
@@ -34,7 +32,7 @@ case "$major" in
       exit 1
     fi
     printf 'Installing KotlinComposeKit globally for OpenCode V2 (%s)...\n' "$version"
-    opencode plugin add "$V2_PACKAGE" --global
+    opencode plugin add "$V2_PACKAGE"
     ;;
   1)
     if ! awk -v v="$version" 'BEGIN {

@@ -22,7 +22,10 @@ version, and calls OpenCode's native global plugin installer.
 Run this command from any directory:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh | sh
+tmp="$(mktemp)" &&
+trap 'rm -f "$tmp"' EXIT &&
+curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
+sh "$tmp"
 ```
 
 The shell installer performs the same version check and invokes the matching
@@ -40,7 +43,7 @@ configuration. OpenCode's own CLI manages the global plugin entry.
 To install or update manually, use the matching native command:
 
 - V1: `opencode plugin 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global`
-- V2: `opencode plugin add github:SoufianoDev/KotlinComposeKit --global`
+- V2: `opencode plugin add github:SoufianoDev/KotlinComposeKit` (adds the plugin to global configuration by default)
 
 Restart OpenCode after installation if it is already running.
 

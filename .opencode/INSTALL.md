@@ -22,10 +22,12 @@ version, and calls OpenCode's native global plugin installer.
 Run this command from any directory:
 
 ```sh
-tmp="$(mktemp)" &&
-trap 'rm -f "$tmp"' EXIT &&
-curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
-sh "$tmp"
+(
+  tmp="$(mktemp)" &&
+  trap 'rm -f "$tmp"' EXIT &&
+  curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
+  sh "$tmp"
+)
 ```
 
 The shell installer performs the same version check and invokes the matching

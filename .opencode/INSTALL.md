@@ -6,21 +6,36 @@
 
 ## Installation
 
+### Windows PowerShell
+
+Run this command in PowerShell 5.1 or newer, from any directory:
+
+```powershell
+irm https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.ps1 | iex
+```
+
+The PowerShell installer checks that OpenCode is installed, detects its major
+version, and calls OpenCode's native global plugin installer.
+
+### macOS and Linux
+
 Run this command from any directory:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh | sh
 ```
 
-The installer checks that OpenCode is installed, detects its major version, and
-uses OpenCode's own global plugin installer. It supports:
+The shell installer performs the same version check and invokes the matching
+native global plugin command.
+
+Both installers support:
 
 - OpenCode V1 1.18.29 or newer.
 - OpenCode V2 2.0.22 or newer.
 
-It installs the plugin globally, so it is available across projects. It does not
-modify project files or manually rewrite your OpenCode JSON configuration.
-OpenCode's own CLI manages the global plugin entry.
+The plugin is installed globally, so it is available across projects. The
+installers do not modify project files or manually rewrite your OpenCode JSON
+configuration. OpenCode's own CLI manages the global plugin entry.
 
 To install or update manually, use the matching native command:
 

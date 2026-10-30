@@ -16,7 +16,9 @@ opencode plugin add github:SoufianoDev/KotlinComposeKit
 ```
 
 OpenCode downloads the GitHub package, installs its dependencies, and adds it
-to the global plugin configuration. Restart OpenCode if it was already running.
+to the global plugin configuration. Changes in watched configuration directories
+reload automatically; restart OpenCode only if an already-running instance does
+not pick up the plugin.
 
 ### OpenCode V1
 
@@ -83,7 +85,8 @@ For V2:
 2. Run `opencode plugin list` and inspect the plugin status.
 3. Run `opencode api plugin.list` to inspect load failures.
 4. Run `opencode api skill.list` to check whether the skill catalog was registered.
-5. Restart OpenCode after changing plugin configuration.
+5. Allow watched configuration directories to reload. Restart OpenCode only if
+the plugin or its skills are still missing.
 
 For V1, confirm that `opencode --version` reports V1 1.18.29 or newer and
 inspect plugin diagnostics with `opencode debug skill --print-logs`.

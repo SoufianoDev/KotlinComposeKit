@@ -1,105 +1,95 @@
 # Installing KotlinComposeKit for OpenCode
 
-## Prerequisites
+## Requirements
 
-- [OpenCode](https://opencode.ai) V1 1.18.29 or newer, or V2 2.0.22 or newer
+- OpenCode V2 2.1.2 or newer for the native installation command below.
+- OpenCode V1 1.18.29 or newer remains supported through the legacy `server` entrypoint.
 
-## Installation
+## Install
 
-### Windows PowerShell
+### OpenCode V2
 
-Run this command in PowerShell 5.1 or newer, from any directory:
-
-```powershell
-irm https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.ps1 | iex
-```
-
-The PowerShell installer checks that OpenCode is installed, detects its major
-version, and calls OpenCode's native global plugin installer.
-
-### macOS and Linux
-
-Run this command from any directory:
+Run this command in any directory:
 
 ```sh
-(
-  tmp="$(mktemp)" &&
-  trap 'rm -f "$tmp"' EXIT &&
-  curl -fsSL https://raw.githubusercontent.com/SoufianoDev/KotlinComposeKit/main/scripts/install-opencode.sh -o "$tmp" &&
-  sh "$tmp"
-)
+opencode plugin add github:SoufianoDev/KotlinComposeKit
 ```
 
-The shell installer performs the same version check and invokes the matching
-native global plugin command.
+OpenCode downloads the GitHub package, installs its dependencies, and adds it
+to the global plugin configuration. Restart OpenCode if it was already running.
 
-Both installers support:
+### OpenCode V1
 
-- OpenCode V1 1.18.29 or newer.
-- OpenCode V2 2.0.22 or newer.
+Use OpenCode V1's legacy plugin manager command:
 
-The plugin is installed globally, so it is available across projects. The
-installers do not modify project files or manually rewrite your OpenCode JSON
-configuration. OpenCode's own CLI manages the global plugin entry.
+```sh
+opencode plugin 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global
+```
 
-To install or update manually, use the matching native command:
-
-- V1: `opencode plugin 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git' --global`
-- V2: `opencode plugin add github:SoufianoDev/KotlinComposeKit` (adds the plugin to global configuration by default)
-
-Restart OpenCode after installation if it is already running.
+The V1 `server` entrypoint remains available for existing V1 installations.
+Do not use the V2 `plugin add` command as a substitute for this V1 command.
 
 ## Verify
 
-On V2, use `opencode plugin list` to check that `kotlin-compose-kit` is loaded and `opencode api skill.list` to inspect discovered skills. On V1, use `opencode debug skill`.
-
-You can also use OpenCode's native `skill` tool, or ask a routing question such as:
-
-```text
-Which KotlinComposeKit module should I use to review this Compose state model?
-```
-
-For broad Kotlin, Android, JVM, or Jetpack Compose tasks, the agent should start with `using-kotlin-compose-kit` and then load the focused skill for the task.
-
-OpenCode uses its own plugin install. If you also use Claude Code, Codex, or another harness, install KotlinComposeKit separately for each one.
-
-## Updating
-
-On V2, run `opencode plugin update` with the configured package target to update this plugin:
+On V2, list installed plugins:
 
 ```sh
-opencode plugin update 'kotlin-compose-kit@git+https://github.com/SoufianoDev/KotlinComposeKit.git'
+opencode plugin list
 ```
 
-On V1, OpenCode installs git-backed plugin specs through its plugin manager. Some OpenCode and Bun versions pin resolved git dependencies in a lockfile or cache, so a restart may not pick up the newest commit. If updates do not appear, reinstall the plugin.
+Check the plugin runtime status and discovered skills:
 
-To pin a release, append `#<release-tag>` to the package spec. Choose a release that supports your OpenCode version; releases containing only the V1 plugin do not load on V2.
+```sh
+opencode api plugin.list
+opencode api skill.list
+```
+
+On V1, use:
+
+```sh
+opencode debug skill
+```
+
+The skills list should include `using-kotlin-compose-kit` and the repository's
+focused Kotlin, Android, JVM, and Jetpack Compose modules.
+
+## Update
+
+On V2, check for and install package updates:
+
+```sh
+opencode plugin check
+opencode plugin update kotlin-compose-kit
+```
+
+V1 uses its legacy Git-backed plugin manager. If a restart does not pick up a
+new revision, reinstall the plugin with the V1 command above.
+
+## Remove
+
+On V2, remove the plugin from the global configuration:
+
+```sh
+opencode plugin remove kotlin-compose-kit
+```
+
+On V1, remove the KotlinComposeKit entry from the global `plugin` configuration.
 
 ## Troubleshooting
 
-### Plugin not loading
+For V2:
 
-1. Check `opencode --version` against the minimum versions above.
-2. Verify the `plugin` (V1) or `plugins` (V2) entry in your configuration.
-3. On V2, run `opencode api plugin.list` for load status and error details. On V1, inspect logs from `opencode debug skill --print-logs`.
+1. Confirm that `opencode --version` reports V2 2.1.2 or newer.
+2. Run `opencode plugin list` and inspect the plugin status.
+3. Run `opencode api plugin.list` to inspect load failures.
+4. Run `opencode api skill.list` to check whether the skill catalog was registered.
+5. Restart OpenCode after changing plugin configuration.
 
-### Skills not found
+For V1, confirm that `opencode --version` reports V1 1.18.29 or newer and
+inspect plugin diagnostics with `opencode debug skill --print-logs`.
 
-1. Use the native `skill` tool to list discovered skills
-2. Check that the plugin is loading
-3. Restart OpenCode after changing plugin configuration
+Report issues at
+https://github.com/SoufianoDev/KotlinComposeKit/issues.
 
-On V2, a local checkout can also supply skills directly:
-
-```json
-{
-  "skills": ["/absolute/path/to/KotlinComposeKit/skills"]
-}
-```
-
-This uses native skill discovery without the plugin's routing guidance.
-
-## Getting Help
-
-- Report issues: https://github.com/SoufianoDev/KotlinComposeKit/issues
-- Repository: https://github.com/SoufianoDev/KotlinComposeKit
+See the official [OpenCode V2 plugin management documentation](https://opencode.ai/v2/docs/plugins)
+for the V2 package installation and management commands.
